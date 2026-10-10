@@ -1,0 +1,21 @@
+:root{--bg:#1b1713;--panel:#2a241d;--ink:#efe6d6;--mute:#b3a68f;--acc:#c9a24a;--bad:#d9674f;--ok:#7fb069;--line:#4a4033}
+@media (prefers-color-scheme:light){:root{--bg:#f3ecdd;--panel:#fffaf0;--ink:#2a2118;--mute:#6f6350;--acc:#8a6a1c;--bad:#b3402a;--ok:#3f7a2c;--line:#d9ccb2}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:1.25rem;letter-spacing:.08em}h1 small{color:var(--mute);font-size:.7em;margin-left:.5em}
+main{max-width:760px;margin:0 auto;padding:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin:0 0 16px}
+h2{margin:0 0 8px;font-size:1.1rem;color:var(--acc)}
+input,select,button{font:inherit;color:inherit}
+input,select{background:transparent;border:1px solid var(--line);border-radius:6px;padding:8px 10px;max-width:100%}
+button{background:var(--acc);color:#1b1713;border:0;border-radius:6px;padding:9px 16px;cursor:pointer;font-weight:700}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.mute{color:var(--mute);font-size:.9em}.bad{color:var(--bad)}.ok{color:var(--ok)}
+ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:6px 0;border-bottom:1px solid var(--line)}
+.code{font:700 1.4rem/1 monospace;letter-spacing:.2em;color:var(--acc)}
+#toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:6px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+@media (max-width:480px){main{padding:12px}}

@@ -19,3 +19,33 @@ ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:6px 0;border-bot
 #toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:6px;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 @media (max-width:480px){main{padding:12px}}
+
+/* ---- 対戦画面 ---- */
+.banner{background:#6b3d12;color:#ffe9c7;border:1px solid var(--acc);border-radius:6px;padding:6px 10px;margin:0 0 8px;font-size:.85rem}
+.turnbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border:1px solid var(--line);border-radius:6px;margin-bottom:8px;background:var(--panel)}
+.turnbar.mine{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+.turnbar .tools{margin-left:auto;display:flex;gap:6px;align-items:center}
+.game{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:12px;align-items:start}
+.boardwrap{overflow:auto;background:#14110e;border:1px solid var(--line);border-radius:8px;max-height:82vh;touch-action:pan-x pan-y pinch-zoom}
+.boardwrap svg{display:block;margin:auto;max-width:none}
+.side{display:flex;flex-direction:column;gap:0}
+.side .card{margin-bottom:10px;padding:12px}
+button.sm{padding:5px 10px;font-size:.85rem}
+.tl{font:700 9px sans-serif;fill:#111;text-anchor:middle;pointer-events:none}
+.eb,.sb,.ub{font:700 9px sans-serif;text-anchor:middle;pointer-events:none;fill:#111}
+.ub{fill:#fff;font-size:8px}.sb{fill:#fff}
+.rc{font:700 8.5px sans-serif;fill:#fff;paint-order:stroke;stroke:#000;stroke-width:2px;pointer-events:none}
+.hx{cursor:pointer}.hx polygon{transition:stroke .12s}
+[data-unit]{cursor:pointer}
+.opt{display:block;padding:6px 0;border-bottom:1px solid var(--line)}
+.units{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.pl{padding:6px 8px;border-radius:6px;border:1px solid transparent;margin-bottom:4px}
+.pl.turn{border-color:var(--acc)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.stats{font-size:.85rem}
+.log{max-height:200px;overflow:auto;font-size:.82rem}
+.chk{display:inline-flex;gap:6px;align-items:center;font-size:.85rem}
+.tag{font-size:.7rem;border:1px solid var(--acc);color:var(--acc);border-radius:4px;padding:0 4px;margin-left:6px}
+.cardchip{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+.tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl th,.tbl td{border-bottom:1px solid var(--line);padding:4px;text-align:left}
+@media (max-width:820px){.game{grid-template-columns:1fr}.boardwrap{max-height:60vh}}

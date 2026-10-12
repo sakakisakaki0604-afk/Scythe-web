@@ -286,9 +286,12 @@ export function apply(stIn, uid, action, rng = Math.random) {
       break;
     }
     case 'endTurn': {
-      if (phase === 'section') fail('セクションを選んでから終了します（何もしない場合もセクションは動かします）');
-      if (phase === 'moving' || st.pending) fail('処理中の項目があります');
-      if (phase === 'top') log(st, uid, '上段アクションを行わない');
+      if (st.pending) fail('処理中の項目があります');
+      if (phase === 'section') { const ls = legalSections(st, uid); p.last = p.section; p.section = ls[0]; log(st, uid, '何も行わずにターンを終了'); }
+      else if (phase === 'moving') {
+        finishMove(st, uid, ctx);
+        if (st.pending) break; // 戦闘・遭遇を解決してから、もう一度終了する
+      } else if (phase === 'top') log(st, uid, '上段アクションを行わない');
       endTurn(st, uid, ctx);
       break;
     }
@@ -313,7 +316,7 @@ function topAction(st, uid, a, ctx) {
     pay(st, uid, { coins: 1 });
     if (a.mode === 'card') grantCards(st, uid, 1, ctx); else p.power = Math.min(POWER_MAX, p.power + 2);
     if (p.structures.some((s) => s.type === 'monument')) p.pop = Math.min(POP_MAX, p.pop + 1);
-    log(st, uid, `鼓舞: ${a.mode === 'card' ? '戦闘カード+1' : 'パワー+2'}`); done(); return;
+    log(st, uid, `鼓舞: ${a.mode === 'card' ? '戦闘カード+1' : '戦力+2'}`); done(); return;
   }
   if (kind === 'trade') {
     pay(st, uid, { coins: 1 });
@@ -328,7 +331,7 @@ function topAction(st, uid, a, ctx) {
       }
     }
     if (p.structures.some((s) => s.type === 'armory')) p.power = Math.min(POWER_MAX, p.power + 1);
-    log(st, uid, `交易: ${a.mode === 'pop' ? '人気度+1' : '資源+2'}`); done(); return;
+    log(st, uid, `交易: ${a.mode === 'pop' ? '支持+1' : '資源+2'}`); done(); return;
   }
   if (kind === 'produce') { doProduce(st, uid, a.hexes, ctx); done(); return; }
   if (kind === 'factory') {
@@ -371,7 +374,7 @@ function doMove(st, uid, a, ctx) {
     const defender = enemies.find((u) => before[u].char || before[u].mechs);
     if (defender) { st.turn.combatWith = { hex: a.to, defender }; stop = true; }
     else {
-      // ワーカーのみ → 退却、人気度を失う
+      // ワーカーのみ → 退却、支持を失う
       let forced = 0;
       for (const e of enemies) {
         const ep = st.players[e];
@@ -428,7 +431,7 @@ function doCombat(st, uid, a, ctx) {
   for (const k of ['att', 'def']) {
     const c = a[k], pl = st.players[sides[k]];
     if (!c || !Number.isInteger(c.dial) || c.dial < 0) fail('ダイヤルが不正です');
-    if (c.dial > Math.min(7, pl.power)) fail('ダイヤルはパワー以下・7以下です');
+    if (c.dial > Math.min(7, pl.power)) fail('ダイヤルは戦力以下・7以下です');
     const cards = c.cards || [];
     if (cards.length > (k === 'att' ? pd.attUnits : pd.defUnits)) fail('戦闘カードは関与ユニット数までです');
     if (cards.length > pl.hand) fail('手札が足りません');

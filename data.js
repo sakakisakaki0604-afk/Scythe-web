@@ -97,3 +97,36 @@ export const RECRUIT_ONGOING = { upgrade: { coins: 1 }, deploy: { power: 1 }, bu
 
 export const topOf = (mat, idx) => BASE_MATS[mat].columns[idx].split('+')[0].replace('inspire', 'bolster');
 export const structOf = (mat, idx) => BASE_MATS[mat].columns[idx].split('+')[1];
+
+// ---- 表示用の説明文（資料: 勢力能力・メック能力・プレイヤーマット総覧 v1.0） ----
+export const PASSIVE = {
+  nordic: ['スイム', 'ワーカーは川を越えて、湖以外の地形へ移動できる。'],
+  crimea: ['コアーション', '1手番に1回、戦闘カード1枚を価値に関係なく任意の資源1個の代わりに支払える。'],
+  saxony: ['ドミネート', '戦闘勝利の星に上限がなく、目的カード2枚とも達成して星を得られる。'],
+  polania: ['メアンダー', '遭遇カード1枚で最大2つの選択肢を順に解決できる。1つ目の利益を2つ目の費用に使える。'],
+  rusviet: ['リレントレス', '前の手番と同じ行動マット区画を続けて選べる。'],
+};
+export const RIVER_TEXT = { forest: '森林', mountain: '山岳', farm: '農地', tundra: 'ツンドラ', village: '村' };
+export const ABILITY_TEXT = {
+  riverwalk: (f) => `川を越えて${(RIVERWALK[f] || []).map((t) => RIVER_TEXT[t]).join('・')}へ移動できる。`,
+  speed: () => 'キャラクターとメックの移動距離が1領土分増える。',
+  seaworthy: () => 'キャラクター／メックは湖へ出入りできる（湖に駒・資源は残せない）。【未実装】',
+  artillery: () => '戦闘開始時に戦力1を払い、相手の戦力を2下げる（1戦闘1回）。【未実装】',
+  wayfare: () => 'キャラクター／メックは自分の本拠地や無人の本拠地へ距離無視で移動できる。【未実装】',
+  scout: () => '戦闘開始時、相手の戦闘カードをランダムに1枚奪う。【未実装】',
+  underpass: () => '自分が支配する山岳とトンネルを接続先として扱う。【未実装】',
+  disarm: () => '自分の鉱山／トンネルでの戦闘開始時、相手の戦力を2下げる。【未実装】',
+  submerge: () => 'キャラクター／メックは湖へ出入りでき、湖から湖へも移動できる。【未実装】',
+  camaraderie: () => '攻撃側で勝ったとき、敗者のワーカー退却による支持の損失を防ぐ。',
+  township: () => '自分が支配する村と工場を隣接として扱う。【未実装】',
+  peoples_army: () => '自分のワーカーがいる領土の戦闘で、戦闘カードを1枚多く使える。【未実装】',
+};
+export const TOP_TEXT = {
+  move: '最大2体を1領土ずつ移動（またはコイン+1）',
+  bolster: '1コイン → 戦力+2 か 戦闘カード+1',
+  trade: '1コイン → 支持+1 か 資源2個',
+  produce: '最大2領土で、ワーカー1体につき1個生産',
+};
+export const BOTTOM_TEXT = {
+  upgrade: '改良キューブを移し、コインを減らす', deploy: 'メックを配備し、能力を解放', build: '建物を1つ建てる', enlist: '徴兵トークンを置き、ボーナスを得る',
+};

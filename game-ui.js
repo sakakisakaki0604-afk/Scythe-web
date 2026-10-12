@@ -1,7 +1,7 @@
 // 対戦画面（盤面SVG・操作パネル）。状態の判定は engine/game.js、保存は net.js。
 import { MAP, DIRS, PX } from './legacy-map.js';
 import {
-  BASE_FACTIONS, BASE_MATS, MECH_SLOTS, ABILITY_NAMES, IMPLEMENTED_ABILITIES, BOTTOM_ORDER, BOTTOM_NAMES, BOTTOM_RES,
+  BASE_FACTIONS, BASE_MATS, MECH_SLOTS, ABILITY_NAMES, ABILITY_TEXT, PASSIVE, TOP_TEXT, BOTTOM_TEXT, IMPLEMENTED_ABILITIES, BOTTOM_ORDER, BOTTOM_NAMES, BOTTOM_RES,
   TOP_NAMES, STRUCT_NAMES, RES_NAMES, RECRUIT_ONETIME, topOf, structOf,
 } from './data.js';
 import {
@@ -65,7 +65,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         ${unitMarks(st, id, cx, cy, colorOf, me)}
         </g>`;
     }
-    return `<svg viewBox="0 0 1024 1024" style="width:${Math.round(100 * ui.zoom)}%;max-width:none" role="img" aria-label="盤面"><image href="map.jpg" width="1024" height="1024"/>${hexes}</svg>`;
+    return `<svg viewBox="0 0 1024 1024" style="width:calc(min(100%, 100vh - 130px) * ${ui.zoom});max-width:none" role="img" aria-label="盤面"><image href="map.jpg" width="1024" height="1024"/>${hexes}</svg>`;
   }
   function resChips(hs, cx, cy) {
     const items = Object.entries(hs.res).filter(([, v]) => v > 0);
@@ -118,13 +118,13 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (st.pending?.type === 'free') return freePanel(ctx);
     if (st.pending?.type === 'factory') {
       return `<div class="card"><h2>工場カードを選ぶ（1枚・変更不可）</h2>${st.factoryCandidates.map((id) => {
-        const c = byId(FACTORY_CARDS, id); return `<div class="opt facopt"><img src="${c.img}" alt="${esc(c.name)}"><div><b>${esc(c.name)}</b><div class="mute">${esc(c.text)}<br>（絵柄からの暫定解釈）</div><button data-act="factory-pick" data-v="${id}">これにする</button></div></div>`;
+        const c = byId(FACTORY_CARDS, id); return `<div class="opt facopt"><img src="${c.img}" alt="${esc(c.name)}"><div><b>${esc(c.name)}</b><div class="mute">${esc(c.text)}</div><button data-act="factory-pick" data-v="${id}">これにする</button></div></div>`;
       }).join('')}</div>`;
     }
     if (t.phase === 'section') {
       const ok = legalSections(st, me);
-      return `<div class="card"><h2>あなたの手番：セクションを選ぶ</h2><p class="mute">前回と別のセクションへアクショントークンを動かします。</p>
-        <div class="cols">${[0, 1, 2, 3, ...(p.factory ? ['factory'] : [])].map((s) => `<button class="col" data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}>${s === 'factory' ? sectionLabel(p, s) : `<b>${TOP_NAMES[topOf(p.mat, s)]}</b><i>${BASE_MATS[p.mat].columns[s].split('+')[1] ? STRUCT_NAMES[structOf(p.mat, s)] : ''}</i><u>${BOTTOM_NAMES[BOTTOM_ORDER[s]]}</u>`}</button>`).join('')}</div></div>`;
+      return `<div class="card"><h2>あなたの手番：セクションを選ぶ</h2><p class="mute">下の行動マットの列をクリックして、今回のセクションを選びます（前回と別の列）。</p>
+        <div class="cols" hidden>${[0, 1, 2, 3, ...(p.factory ? ['factory'] : [])].map((s) => `<button class="col" data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}>${s === 'factory' ? sectionLabel(p, s) : `<b>${TOP_NAMES[topOf(p.mat, s)]}</b><i>${BASE_MATS[p.mat].columns[s].split('+')[1] ? STRUCT_NAMES[structOf(p.mat, s)] : ''}</i><u>${BOTTOM_NAMES[BOTTOM_ORDER[s]]}</u>`}</button>`).join('')}</div></div>`;
     }
     const kindTop = p.section === 'factory' ? 'factory' : topOf(p.mat, p.section);
     if (t.phase === 'top') return `<div class="card"><h2>上段：${TOP_NAMES[kindTop]}</h2>${topForm(ctx, kindTop)}
@@ -141,8 +141,8 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   function topForm(ctx, kind) {
     const { st, me } = ctx, p = st.players[me];
     if (kind === 'move') return `<div class="row"><button data-act="move-units">ユニットを移動（最大2体・各1回）</button><button class="ghost" data-act="move-coin">代わりにコイン+1</button></div>`;
-    if (kind === 'bolster') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="bolster-power">パワー+2</button><button data-act="bolster-card">戦闘カード+1</button></div>`;
-    if (kind === 'trade') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="trade-pop">人気度+1</button></div>
+    if (kind === 'bolster') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="bolster-power">戦力+2</button><button data-act="bolster-card">戦闘カード+1</button></div>`;
+    if (kind === 'trade') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="trade-pop">支持+1</button></div>
       <div class="row">資源 ${resSel('trade.r1', ui.trade.r1)} ${resSel('trade.r2', ui.trade.r2)} ${hexBtn('置く領土', 'trade.hex', ui.trade.hex)} <button data-act="trade-res">資源+2</button></div>`;
     if (kind === 'produce') return `<p class="mute">自分が支配しワーカーがいる領土を最大2か所（盤面をクリック）</p>
       <div class="chips">${producible(ctx).map((id) => `<button class="chip ${ui.produce.includes(id) ? 'on' : ''}" data-act="produce-toggle" data-v="${id}">${TERR[MAP.hexes[id].terrain][1]} ${id}</button>`).join('') || '<span class="mute">生産できる領土がありません</span>'}</div>
@@ -194,7 +194,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     }
     const fromFree = BOTTOM_ORDER.filter((s) => !p.recruits.some((r) => r.section === s));
     const bonFree = RECRUIT_ONETIME.filter((x) => !p.recruits.some((r) => r.bonus === x));
-    const BN = { power: 'パワー+2', coins: 'コイン+2', pop: '人気度+2', card: '戦闘カード+2' };
+    const BN = { power: '戦力+2', coins: 'コイン+2', pop: '支持+2', card: '戦闘カード+2' };
     return head + `<div class="row">徴兵トークンの取得元 <select data-bind="bot.from">${fromFree.map((s) => `<option value="${s}" ${b.from === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}</option>`).join('')}</select> 一時ボーナス <select data-bind="bot.bonus">${bonFree.map((x) => `<option value="${x}" ${b.bonus === x ? 'selected' : ''}>${BN[x]}</option>`).join('')}</select><button data-act="bot-go">徴兵する</button></div>`;
   }
 
@@ -204,7 +204,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const c = byId(ENCOUNTERS, pd.cardId), max = p.faction === 'polania' ? 2 : 1;
     const okOpt = (o) => !o.unsupported && canPay(st, me, o.cost);
     const none = !c.options.some(okOpt);
-    return `<div class="card"><h2>遭遇 #${c.no} ${c.official ? '' : '<span class="tag">仮案</span>'}</h2><p class="mute">選択肢を${max === 2 ? '最大2つ（ポラニア）' : '1つ'}選びます。</p>
+    return `<div class="card"><h2>遭遇 #${c.no}</h2><p class="mute">選択肢を${max === 2 ? '最大2つ（ポラニア）' : '1つ'}選びます。</p>
       ${c.options.map((o, i) => `<label class="opt ${okOpt(o) ? '' : 'dim'}"><input type="${max === 2 ? 'checkbox' : 'radio'}" name="enc" data-bind="enc" value="${i}" ${okOpt(o) ? '' : 'disabled'} ${ui.enc.includes(i) ? 'checked' : ''}> ${esc(o.text)}${o.unsupported ? ' <span class="tag">未実装</span>' : ''}</label>`).join('')}
       <div class="row"><button data-act="enc-go" ${none || ui.enc.length ? '' : 'disabled'}>${none ? '見送る（選べる選択肢なし）' : 'この選択で解決'}</button></div></div>`;
   }
@@ -226,7 +226,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     } else if (k === 'enlist') {
       const fromFree = BOTTOM_ORDER.filter((s) => !p.recruits.some((r) => r.section === s));
       const bonFree = RECRUIT_ONETIME.filter((x) => !p.recruits.some((r) => r.bonus === x));
-      const BN = { power: 'パワー+2', coins: 'コイン+2', pop: '人気度+2', card: '戦闘カード+2' };
+      const BN = { power: '戦力+2', coins: 'コイン+2', pop: '支持+2', card: '戦闘カード+2' };
       body = `取得元 <select data-bind="free.from">${fromFree.map((s) => `<option value="${s}" ${f.from === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}</option>`).join('')}</select> 一時ボーナス <select data-bind="free.bonus">${bonFree.map((x) => `<option value="${x}" ${f.bonus === x ? 'selected' : ''}>${BN[x]}</option>`).join('')}</select>`;
     } else if (k === 'produce') {
       body = `<div class="chips">${producible(ctx).map((id) => `<button class="chip ${ui.produce.includes(id) ? 'on' : ''}" data-act="produce-toggle" data-v="${id}">${TERR[MAP.hexes[id].terrain][1]} ${id}</button>`).join('')}</div>`;
@@ -237,7 +237,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     return `<div class="card"><h2>無料効果：${kinds.map((x) => FREE_NAMES[x]).join('か')}（残り${pd.queue.length}）</h2><p class="mute">費用なしで実行します。</p>${sel}
       <div class="row">${body}<button data-act="free-go" data-v="${k}">実行</button><button class="ghost" data-act="free-skip">行わない</button></div></div>`;
   }
-  const LABEL = { coins: 'コイン', power: 'パワー', pop: '人気度', card: '戦闘カード', oil: '油', metal: '金属', wood: '木材', food: '食料', worker: 'ワーカー' };
+  const LABEL = { coins: 'コイン', power: '戦力', pop: '支持', card: '戦闘カード', oil: '油', metal: '金属', wood: '木材', food: '食料', worker: 'ワーカー' };
 
   function combatPanel(ctx) {
     const { st, me, priv, combat } = ctx, pd = st.pending;
@@ -250,7 +250,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const hand = (priv?.hand || []).slice().sort((a, b) => a.value - b.value);
     const maxDial = Math.min(7, p.power);
     return `<div class="card">${head}<p class="mute">ダイヤルと戦闘カードを秘密に決め、同時に公開します。同点は攻撃側の勝ち。</p>
-      <div class="row">ダイヤル（パワー${p.power}・最大${maxDial}） <select data-bind="combat.dial">${Array.from({ length: maxDial + 1 }, (_, i) => `<option value="${i}" ${+ui.combat.dial === i ? 'selected' : ''}>${i}</option>`).join('')}</select></div>
+      <div class="row">ダイヤル（戦力${p.power}・最大${maxDial}） <select data-bind="combat.dial">${Array.from({ length: maxDial + 1 }, (_, i) => `<option value="${i}" ${+ui.combat.dial === i ? 'selected' : ''}>${i}</option>`).join('')}</select></div>
       <p>戦闘カード（関与ユニット${units}体まで／手札${hand.length}枚）</p>
       <div class="row">${hand.map((c) => `<label class="cardchip"><input type="checkbox" data-bind="combat.card" value="${c.id}" ${ui.combat.cards.includes(c.id) ? 'checked' : ''}> ${c.value}</label>`).join('') || '<span class="mute">手札なし</span>'}</div>
       <div class="row"><button data-act="combat-commit">確定する</button></div></div>`;
@@ -263,7 +263,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const h = objectiveHelpers(st, me);
     return `<p class="mute">目的カード（達成していれば宣言して星を得ます）</p>${list.map((o) => {
       const ok = o.check(p, h) && !(p.stars.includes('objective') && (p.faction !== 'saxony' || p.stars.includes('objective2')));
-      return `<div class="opt"><b>${esc(o.name)}</b>${o.official ? "" : '<span class="tag">仮案</span>'} <span class="mute">${esc(o.text)}</span> <button class="sm" data-act="objective" data-v="${o.id}" ${ok ? '' : 'disabled'}>宣言</button></div>`;
+      return `<div class="opt"><b>${esc(o.name)}</b> <span class="mute">${esc(o.text)}</span> <button class="sm" data-act="objective" data-v="${o.id}" ${ok ? '' : 'disabled'}>宣言</button></div>`;
     }).join('')}`;
   }
 
@@ -275,28 +275,63 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       <div class="row">${room.hostUid === me ? '<button data-act="rematch">同じメンバーでもう一度</button>' : ''}<button class="ghost" data-act="leave">退出</button></div></div>`;
   }
 
-  function playersPanel(ctx) {
+  const FACE = (f, n = 26) => `<img class="face" style="width:${n}px;height:${n}px" src="faction_${f}.jpg" alt="">`;
+  function comparePanel(ctx) {
     const { st } = ctx;
-    return `<div class="card"><h2>プレイヤー</h2>${st.order.map((uid, i) => {
-      const p = st.players[uid], rt = resTotals(st, uid), tr = st.turnUid === uid;
-      const sc = scoreOf(st, uid);
-      return `<div class="pl ${tr ? 'turn' : ''}"><span class="dot" style="background:${COLORS[i]}"></span><b>${nm(ctx, uid)}</b>
-        <span class="mute">${BASE_FACTIONS[p.faction].name}／${BASE_MATS[p.mat].name}</span>
-        <div class="stats">コイン${p.coins} パワー${p.power} 人気度${p.pop} 手札${p.hand}枚 星${p.stars.length}/6</div>
-        <div class="stats mute">油${rt.oil} 金${rt.metal} 木${rt.wood} 食${rt.food} ／ 暫定${sc.total}点 ／ ワーカー${p.workers.length} メック${p.mechs.length} 建物${p.structures.length}</div></div>`;
-    }).join('')}</div>`;
+    const rows = [['支持', (p) => p.pop, 18], ['戦力', (p) => p.power, 16], ['星', (p) => p.stars.length, 6], ['コイン', (p) => p.coins, Math.max(20, ...Object.values(st.players).map((p) => p.coins))]];
+    return `<div class="card"><h2>プレイヤー比較</h2>${st.order.map((u, i) => `<span class="legend">${FACE(st.players[u].faction, 22)}<i style="background:${COLORS[i]}"></i>${nm(ctx, u)}（${BASE_FACTIONS[st.players[u].faction].name}）</span>`).join('')}
+      ${rows.map(([lab, f, mx]) => `<div class="cmp"><b>${lab}</b>${st.order.map((u, i) => { const v = f(st.players[u]); return `<div class="bar"><span class="fill" style="width:${Math.max(3, (v / mx) * 100)}%;background:${COLORS[i]}"></span><span class="val">${FACE(st.players[u].faction, 18)} ${v}</span></div>`; }).join('')}</div>`).join('')}</div>`;
   }
 
-  function minePanel(ctx) {
-    const { st, me, priv } = ctx, p = st.players[me];
-    const hand = (priv?.hand || []).slice().sort((a, b) => a.value - b.value).map((c) => c.value);
-    const abil = MECH_SLOTS[p.faction].map((a, i) => `${ABILITY_NAMES[a]}${p.mechs.some((m) => m.slot === i) ? '✔' : ''}${IMPLEMENTED_ABILITIES.includes(a) ? '' : '(未実装)'}`).join(' / ');
-    return `<div class="card facbg" style="background-image:linear-gradient(rgba(12,10,8,.55),rgba(12,10,8,.82)),url(faction_${p.faction}.jpg)"><h2>あなたの国マット：${BASE_FACTIONS[p.faction].name}</h2>
-      <div class="stats">戦闘カード: ${hand.join(', ') || 'なし'}</div>
-      <div class="stats">改良 ${p.cubes}/6（コスト減: 改良${p.red.upgrade} 配備${p.red.deploy} 建設${p.red.build} 徴兵${p.red.enlist}）／ 徴兵 ${p.recruits.length}/4 ／ マット上ワーカー ${p.matWorkers}</div>
-      <div class="stats">メック能力: ${abil}</div>
-      <div class="stats">星: ${p.stars.join(', ') || 'なし'}</div>
-      ${p.factory ? `<div class="stats">工場カード: ${esc(byId(FACTORY_CARDS, p.factory).name)}</div>` : ''}</div>`;
+  const RESIMG = (r) => `<img class="ri" src="${r}.png" alt="${RES_NAMES[r]}">`;
+  function prodPreview(ctx) {
+    const { st, me } = ctx, p = st.players[me], out = [];
+    for (const h of MAP.ids) {
+      const T = MAP.hexes[h].terrain, n = p.workers.filter((w) => w === h).length;
+      if (!n || controller(st, h) !== me) continue;
+      const mill = p.structures.some((s) => s.type === 'mill' && s.hex === h) ? 1 : 0;
+      if (T === 'village') out.push(`村${h}：ワーカー+${n + mill}`);
+      else { const r = { mountain: 'metal', tundra: 'oil', farm: 'food', forest: 'wood' }[T]; if (r) out.push(`${RESIMG(r)}×${n + mill}（${h}）`); }
+    }
+    return out.length ? out.join(' ') : '<span class="mute">生産できる領土なし</span>';
+  }
+
+  // 国マット（16:9・国の絵が背景）
+  function factionMat(ctx) {
+    const { st, me, priv } = ctx, p = st.players[me], f = p.faction, F = BASE_FACTIONS[f];
+    const hand = (priv?.hand || []).map((c) => c.value).sort((a, b) => a - b);
+    const slots = MECH_SLOTS[f].map((a, i) => {
+      const on = p.mechs.some((m) => m.slot === i);
+      return `<div class="slot ${on ? 'on' : ''}"><b>${on ? '✔ ' : '□ '}${ABILITY_NAMES[a]}</b><span>${ABILITY_TEXT[a](f)}</span></div>`;
+    }).join('');
+    return `<div class="mat fmat" style="background-image:linear-gradient(rgba(10,8,6,.55),rgba(10,8,6,.88)),url(faction_${f}.jpg)">
+      <div class="mh"><b>${F.name}</b> <span class="pas">固有：${PASSIVE[f][0]}</span> <span class="mute">${PASSIVE[f][1]}</span></div>
+      <div class="chips2"><span>戦力 <b>${p.power}</b></span><span>支持 <b>${p.pop}</b></span><span>コイン <b>${p.coins}</b></span><span>星 <b>${p.stars.length}/6</b></span><span>手札 <b>${hand.join(',') || 'なし'}</b></span><span>ワーカー 盤上${p.workers.length}/マット${p.matWorkers}</span><span>メック <b>${p.mechs.length}/4</b></span></div>
+      <div class="slots">${slots}</div>
+      <div class="mute small">メックを配備するとき、解放する能力を上から選べます（キャラクターと全メックに適用）。</div></div>`;
+  }
+
+  // 行動マット（16:9・マットの絵が背景）。セクション選択もここで行う
+  function actionMat(ctx) {
+    const { st, me } = ctx, p = st.players[me], m = BASE_MATS[p.mat];
+    const pick = st.turnUid === me && st.turn.phase === 'section' && !st.pending;
+    const ok = pick ? legalSections(st, me) : [];
+    const cols = [0, 1, 2, 3].map((s) => {
+      const top = topOf(p.mat, s), sk = structOf(p.mat, s), bk = BOTTOM_ORDER[s], [base, maxRed, coin] = m.lower[bk];
+      const cost = Math.max(0, base - p.red[bk]), built = p.structures.some((x) => x.type === sk);
+      const cur = p.section === s;
+      return `<${pick ? 'button' : 'div'} class="acol ${cur ? 'cur' : ''} ${pick && ok.includes(s) ? 'can' : ''}" ${pick ? `data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}` : ''}>
+        <div class="at"><b>${TOP_NAMES[top]}</b><small>${TOP_TEXT[top]}</small>${top === 'produce' ? `<small class="pv">${prodPreview(ctx)}</small>` : ''}</div>
+        <div class="as ${built ? 'built' : ''}">${STRUCT_NAMES[sk]}${built ? '（建設済）' : ''}</div>
+        <div class="ab"><b>${BOTTOM_NAMES[bk]}</b><small>${BOTTOM_TEXT[bk]}</small>
+          <span class="cost">${RESIMG(BOTTOM_RES[bk])}×${cost}${p.red[bk] ? ` <i>(基本${base}−${p.red[bk]})</i>` : ''}</span>
+          <small>減額 ${p.red[bk]}/${maxRed}　報酬 コイン${coin}</small></div></${pick ? 'button' : 'div'}>`;
+    }).join('');
+    const fc = p.factory ? byId(FACTORY_CARDS, p.factory) : null;
+    const fcol = fc ? `<${pick ? 'button' : 'div'} class="acol fac ${p.section === 'factory' ? 'cur' : ''} ${pick ? 'can' : ''}" ${pick ? `data-act="section" data-v="factory"` : ''}><img src="${fc.img}" alt=""><small>工場</small></${pick ? 'button' : 'div'}>` : '';
+    return `<div class="mat amat" style="background-image:linear-gradient(rgba(10,8,6,.5),rgba(10,8,6,.85)),url(mat_${MAT_IMG[p.mat] || 1}.jpg)">
+      <div class="mh"><b>${m.name}マット</b> <span class="mute">改良 ${p.cubes}/6 ・ 徴兵 ${p.recruits.length}/4 ・ 建物 ${p.structures.length}/4${pick ? ' ・ <b class="hint">列をクリックして今回のセクションを選ぶ</b>' : ''}</span></div>
+      <div class="acols">${cols}${fcol}</div></div>`;
   }
 
   function hexPanel(ctx) {
@@ -322,15 +357,14 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const tile = byId(BONUS_TILES, st.bonusTile);
     const mine = st.turnUid === me && !st.over;
     root.innerHTML = `
-      <div class="banner">★暫定版★ 盤面は公式画像から読み取り（川は推定）。遭遇・目的の一部は非公式仮案、工場カードは絵柄からの暫定解釈、構造物ボーナスは仮（${esc(tile?.name || '')}）。メックの一部能力は未実装。</div>
       <div class="turnbar ${mine ? 'mine' : ''}">${st.over ? 'ゲーム終了' : `手番：<b>${nm(ctx, st.turnUid)}</b>${mine ? '（あなた）' : ''}`} <span class="mute">ターン${st.turnNo}</span>
-        <span class="tools"><button class="ghost sm" data-act="zoom-">−</button><button class="ghost sm" data-act="zoom+">＋</button>
+        <span class="tools">${mine ? `<button class="endbtn" data-act="endTurn" ${st.pending ? 'disabled' : ''}>ターン終了</button>` : ''}<button class="ghost sm" data-act="zoom-">−</button><button class="ghost sm" data-act="zoom+">＋</button>
         <label class="chk"><input type="checkbox" data-bind="sound" ${ui.sound ? 'checked' : ''}> 効果音</label></span></div>
       ${st.over ? '' : stepsBar(st)}
-      <div class="game">
-        <div class="boardwrap" id="boardwrap">${boardSVG(ctx)}</div>
-        <div class="side">${st.over ? panelAction(ctx) : matWrap(ctx, panelAction(ctx))}${playersPanel(ctx)}${minePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>
-      </div>`;
+      <div class="boardwrap" id="boardwrap">${boardSVG(ctx)}</div>
+      ${st.over ? panelAction(ctx) : matWrap(ctx, panelAction(ctx))}
+      ${st.over ? '' : `<div class="mats">${factionMat(ctx)}${actionMat(ctx)}</div>`}
+      <div class="below">${comparePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>`;
     if (st.log.length !== ui.lastLog) {
       if (ui.lastLog) { const last = st.log[st.log.length - 1]; beep(/星/.test(last.text) ? 880 : /戦闘/.test(last.text) ? 220 : 440); }
       ui.lastLog = st.log.length;

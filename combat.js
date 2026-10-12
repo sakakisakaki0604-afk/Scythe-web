@@ -2,7 +2,7 @@
 
 export const DIAL_MAX = 7;
 
-/** 戦闘の選択を検証。units=関与する戦闘ユニット数、trackPower=現在のパワー、hand=戦闘カード[{id,value}] */
+/** 戦闘の選択を検証。units=関与する戦闘ユニット数、trackPower=現在の戦力、hand=戦闘カード[{id,value}] */
 export function validateChoice({ dial, cardIds, units, trackPower, hand }) {
   if (!Number.isInteger(dial) || dial < 0) return 'ダイヤルは0以上の整数です';
   if (dial > Math.min(DIAL_MAX, trackPower)) return `ダイヤルは${Math.min(DIAL_MAX, trackPower)}以下です`;

@@ -4,7 +4,7 @@ import { BOARD } from './board-data.js';
 export const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 export const RES = ['metal', 'oil', 'food', 'wood'];
 export const TERRAIN_RES = { mountain: 'metal', tundra: 'oil', farm: 'food', forest: 'wood' };
-export const PX = (q, r) => [520 + 121.2 * (q + r / 2), 468 + 105 * r]; // 盤面画像上の座標
+export const PX = (q, r) => [520 + 121.8 * (q + r / 2), 471 + 106.5 * r]; // 盤面画像上の座標
 
 const hexes = {}, ids = Object.keys(BOARD.terrain);
 const tun = new Set(BOARD.tunnels.map(([q, r]) => `${q},${r}`)), enc = new Set(BOARD.enc.map(([q, r]) => `${q},${r}`));

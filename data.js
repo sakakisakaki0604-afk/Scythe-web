@@ -89,7 +89,7 @@ export const BOTTOM_NAMES = { upgrade: '改良', deploy: '配備', build: '建�
 export const BOTTOM_RES = { upgrade: 'oil', deploy: 'metal', build: 'wood', enlist: 'food' };
 export const TOP_NAMES = { move: '移動', bolster: '鼓舞', trade: '交易', produce: '生産', factory: '工場' };
 export const STRUCT_NAMES = { monument: '記念碑', mill: '製粉所', mine: '鉱山', armory: '兵器庫' };
-export const RES_NAMES = { oil: '油', metal: '金属', wood: '木材', food: '食料' };
+export const RES_NAMES = { oil: '油', metal: '鉄', wood: '木材', food: '食料' };
 
 // 徴兵の一時ボーナス（各2）と、常時ボーナス（★仮: 下段アクション別）
 export const RECRUIT_ONETIME = ['power', 'coins', 'pop', 'card'];
@@ -122,11 +122,14 @@ export const ABILITY_TEXT = {
   peoples_army: () => '自分のワーカーがいる領土の戦闘で、戦闘カードを1枚多く使える。【未実装】',
 };
 export const TOP_TEXT = {
-  move: '最大2体を1領土ずつ移動（またはコイン+1）',
+  move: '最大2体を1領土ずつ移動（またはコイン+1）。改良1つにつき+1体',
   bolster: '1コイン → 戦力+2 か 戦闘カード+1',
   trade: '1コイン → 支持+1 か 資源2個',
-  produce: '最大2領土で、ワーカー1体につき1個生産',
+  produce: 'ワーカーのいる支配領土で最大2か所を生産（改良で3か所）。各ワーカー1体につき1個',
 };
 export const BOTTOM_TEXT = {
   upgrade: '改良キューブを移し、コインを減らす', deploy: 'メックを配備し、能力を解放', build: '建物を1つ建てる', enlist: '徴兵トークンを置き、ボーナスを得る',
 };
+
+// 改良キューブ: 上段の各アクションにある数（6個）。取ると上段が強化され、下段に置くとコストが下がる。
+export const TOP_CUBES = { move: 1, bolster: 2, trade: 2, produce: 1 };

@@ -5,7 +5,7 @@
 import { MAP, RES, TERRAIN_RES, isRiver } from './legacy-map.js';
 import {
   BASE_FACTIONS, BASE_MATS, MAT_NUMBER, MECH_SLOTS, RIVERWALK, BOTTOM_ORDER, BOTTOM_RES,
-  RECRUIT_ONETIME, RECRUIT_ONGOING, topOf, structOf,
+  RECRUIT_ONETIME, RECRUIT_ONGOING, TOP_CUBES, topOf, structOf,
 } from './data.js';
 import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './cards.js';
 
@@ -30,7 +30,7 @@ export function createGame({ players, bonusTileId, factoryIds, gid = 'g0' }) {
       faction, mat, power: f.power, pop: m.popularity, coins: m.coins, hand: f.combatCards, objs: m.objectives,
       section: null, last: null, char: MAP.homes[faction], mechs: [], workers: [...MAP.startAdj[faction]], matWorkers: 6,
       red: { upgrade: 0, deploy: 0, build: 0, enlist: 0 }, cubes: 0, structures: [], recruits: [],
-      stars: [], combatWins: 0, factory: null,
+      stars: [], combatWins: 0, factory: null, up: { move: 0, bolster: 0, trade: 0, produce: 0 },
     };
   }
   log(st, order[0], 'ゲーム開始');
@@ -200,7 +200,7 @@ export function legalSections(st, uid) {
 
 function startMove(st, uid, kind) {
   const t = st.turn;
-  t.move = { kind, left: kind === 'factoryMove' ? 2 : 2, moved: [], single: null, idx: 0 };
+  t.move = { kind, left: kind === 'factoryMove' ? 2 : 2 + (kind === 'move' ? st.players[uid].up?.move || 0 : 0), moved: [], single: null, idx: 0 };
   t.phase = 'moving';
 }
 
@@ -314,16 +314,18 @@ function topAction(st, uid, a, ctx) {
   }
   if (kind === 'bolster') {
     pay(st, uid, { coins: 1 });
-    if (a.mode === 'card') grantCards(st, uid, 1, ctx); else p.power = Math.min(POWER_MAX, p.power + 2);
+    const ub = p.up?.bolster || 0;
+    if (a.mode === 'card') grantCards(st, uid, 1 + ub, ctx); else p.power = Math.min(POWER_MAX, p.power + 2 + ub);
     if (p.structures.some((s) => s.type === 'monument')) p.pop = Math.min(POP_MAX, p.pop + 1);
     log(st, uid, `鼓舞: ${a.mode === 'card' ? '戦闘カード+1' : '戦力+2'}`); done(); return;
   }
   if (kind === 'trade') {
     pay(st, uid, { coins: 1 });
-    if (a.mode === 'pop') p.pop = Math.min(POP_MAX, p.pop + 1);
+    const ut = p.up?.trade || 0;
+    if (a.mode === 'pop') p.pop = Math.min(POP_MAX, p.pop + 1 + ut);
     else {
       const picks = a.res || [];
-      if (picks.length !== 2) fail('資源を2つ選んでください');
+      if (picks.length !== 2 + ut) fail(`資源を${2 + ut}つ選んでください`);
       for (const { type, hex } of picks) {
         if (!RES.includes(type)) fail('不正な資源');
         if (controller(st, hex) !== uid || !myWorkersAt(st, uid, hex)) fail('資源は自分のワーカーがいる支配領土に置きます');
@@ -490,7 +492,7 @@ function enqueueFree(st, hex, items, after) {
 function doProduce(st, uid, hexes, ctx) {
   const p = st.players[uid];
   hexes = [...new Set(hexes || [])];
-  if (!hexes.length || hexes.length > 2) fail('生産する領土は1〜2か所です');
+  if (!hexes.length) fail('生産できる領土がありません');
   for (const h of hexes) {
     if (controller(st, h) !== uid) fail('支配している領土で生産します');
     const mill = p.structures.some((s) => s.type === 'mill' && s.hex === h) ? 1 : 0;
@@ -501,6 +503,7 @@ function doProduce(st, uid, hexes, ctx) {
     else if (TERRAIN_RES[terr]) st.hexes[h].res[TERRAIN_RES[terr]] = (st.hexes[h].res[TERRAIN_RES[terr]] || 0) + n;
     else fail('この地形では生産できません');
   }
+  if (p.up?.produce && hexes.length && TERRAIN_RES[H(hexes[0]).terrain]) { const r0 = TERRAIN_RES[H(hexes[0]).terrain]; st.hexes[hexes[0]].res[r0] += p.up.produce; }
   log(st, uid, `生産（${hexes.length}か所）`);
 }
 
@@ -577,12 +580,13 @@ function runBottom(st, uid, kind, a, ctx, free) {
   };
   if (kind === 'upgrade') {
     if (p.cubes >= 6) fail('改良はすべて完了しています');
-    const slot = a.slot;
-    if (!BOTTOM_ORDER.includes(slot)) fail('改良先を選んでください');
-    if (p.red[slot] >= BASE_MATS[p.mat].lower[slot][1]) fail('その欄はこれ以上改良できません');
+    const slot = a.slot, top = a.top;
+    if (!BOTTOM_ORDER.includes(slot)) fail('埋める下段を選んでください');
+    if (!TOP_CUBES[top] || (p.up[top] || 0) >= TOP_CUBES[top]) fail('その上段にはもうキューブがありません');
+    if (p.red[slot] >= BASE_MATS[p.mat].lower[slot][1]) fail('その下段にはもう置けません');
     pay(st, uid, needPay);
-    p.red[slot]++; p.cubes++;
-    log(st, uid, `改良（${slot}のコスト-1）`);
+    p.up[top] = (p.up[top] || 0) + 1; p.red[slot]++; p.cubes++;
+    log(st, uid, `改良（${top}の強化・${slot}のコスト-1）`);
   } else if (kind === 'deploy') {
     if (p.mechs.length >= 4) fail('メックはすべて配備済みです');
     const slot = a.slot;
@@ -712,4 +716,24 @@ function endTurn(st, uid, ctx) {
   st.turnNo++;
   st.turn = { phase: 'section' };
   void t; void ctx;
+}
+
+// ---- 自動スキップ判定（UI用） ----
+export function producibleHexes(st, uid) {
+  return controlled(st, uid).filter((h) => myWorkersAt(st, uid, h) && (H(h).terrain === 'village' || TERRAIN_RES[H(h).terrain]));
+}
+export function canDo(st, uid, kind, free = false) {
+  const p = st.players[uid], m = BASE_MATS[p.mat];
+  const wHex = controlled(st, uid).some((h) => myWorkersAt(st, uid, h) && !['lake', 'home'].includes(H(h).terrain));
+  const afford = (k) => free || total(st, uid, BOTTOM_RES[k]) >= Math.max(0, m.lower[k][0] - p.red[k]);
+  switch (kind) {
+    case 'upgrade': return p.cubes < 6 && afford(kind) && Object.keys(TOP_CUBES).some((t) => (p.up[t] || 0) < TOP_CUBES[t]) && BOTTOM_ORDER.some((x) => p.red[x] < m.lower[x][1]);
+    case 'deploy': return p.mechs.length < 4 && wHex && afford(kind);
+    case 'build': return STRUCTS.some((x) => !p.structures.some((q) => q.type === x)) && wHex && afford(kind);
+    case 'enlist': return p.recruits.length < 4 && afford(kind);
+    case 'produce': return producibleHexes(st, uid).length > 0;
+    case 'anyRes': return controlled(st, uid).length > 0;
+    case 'bolster': case 'trade': return p.coins >= 1;
+    default: return true;
+  }
 }

@@ -171,7 +171,7 @@ export function moveTargets(st, uid, unit, stepsAllowed) {
         if (ch.terrain === 'home' && ch.home !== p.faction) continue;
         const viaTunnel = !H(cur).nb.includes(c);
         if (!viaTunnel && isRiver(cur, c)) {
-          const ok = isWorker ? p.faction === 'nordic' : rw.includes(ch.terrain);
+          const ok = (isWorker && p.faction === 'nordic') || rw.includes(ch.terrain);
           if (!ok) continue;
         }
         const here = unitsAt(st, c);

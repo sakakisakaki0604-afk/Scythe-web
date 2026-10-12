@@ -83,7 +83,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       const dim = ui.resMode && !h.home ? `<polygon points="${poly}" fill="#000" fill-opacity=".5" pointer-events="none"/>` : '';
       hexes += `<g class="hx" data-hex="${id}" transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">
         ${dim}${shape}${rIcon}${isT ? `<text y="6" text-anchor="middle" class="stp">${ui.targets.find((t) => t.to === id)?.steps ?? ''}</text>` : ''}
-        ${hs.enc ? `<circle cx="${SIZE * 0.7}" cy="${-SIZE * 0.8}" r="8" fill="#e8c14a" stroke="#222"><title>遭遇トークン</title></circle><text x="${SIZE * 0.7}" y="${-SIZE * 0.8 + 4}" class="eb">!</text>` : ''}
+        ${hs.enc ? `<circle cx="18" cy="-21" r="8" fill="#e8c14a" stroke="#222"><title>遭遇トークン</title></circle><text x="18" y="-17.5" class="eb">!</text>` : ''}
         ${structMark(st, hs, colorOf, ctx)}
         ${resChips(hs, 0, 0)}
         </g>`;
@@ -94,30 +94,45 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   function structMark(st, hs, colorOf, ctx) {
     if (!hs.structure) return '';
     const c = colorOf(hs.structure.owner), n = STRUCT_NAMES[hs.structure.type];
-    return `<g class="struct"><title>${n}（${esc(ctx.names(hs.structure.owner))}）</title><circle cx="${-SIZE * 0.7}" cy="${-SIZE * 0.8}" r="12" fill="${c}" stroke="#fff" stroke-width="2.5"/><image href="${hs.structure.type}.png" x="${-SIZE * 0.7 - 9}" y="${-SIZE * 0.8 - 9}" width="18" height="18"/></g>`;
+    return `<g class="struct"><title>${n}（${esc(ctx.names(hs.structure.owner))}）</title><circle cx="-18" cy="-21" r="10" fill="${c}" stroke="#fff" stroke-width="2"/><image href="${hs.structure.type}.png" x="-25" y="-28" width="14" height="14"/></g>`;
   }
-  function resChips(hs, cx, cy) {
-    const items = Object.entries(hs.res).filter(([, v]) => v > 0), w = 27, x0 = cx - (items.length * w) / 2 + 2;
-    return items.map(([k, v], i) => `<g transform="translate(${x0 + i * w} ${cy + SIZE * 0.78})"><rect x="-2" y="-9" width="${w - 2}" height="18" rx="9" fill="#000" fill-opacity=".62"/><image href="${k}.png" width="15" height="15" x="0" y="-7.5"/><text x="16" y="4" class="rc">${v}</text></g>`).join('');
+  // 資源：2種類までは個別、3種類以上は合計1つにまとめる（小さいマスでも重ならない）
+  function resChips(hs) {
+    const items = Object.entries(hs.res).filter(([, v]) => v > 0);
+    if (!items.length) return '';
+    const pill = (x, k, v, tip) => `<g transform="translate(${x} 24)"><title>${tip}</title><rect x="-13" y="-7" width="26" height="14" rx="7" fill="#000" fill-opacity=".72" stroke="#fff" stroke-opacity=".5"/><image href="${k}.png" width="12" height="12" x="-12" y="-6"/><text x="6" y="3.5" class="rc">×${v}</text></g>`;
+    if (items.length <= 2) return items.map(([k, v], i) => pill(items.length === 1 ? 0 : i ? 14 : -14, k, v, `${RES_NAMES[k]}×${v}`)).join('');
+    const tot = items.reduce((s, [, v]) => s + v, 0);
+    return pill(0, items[0][0], tot, items.map(([k, v]) => `${RES_NAMES[k]}×${v}`).join(' / '));
   }
+  // ユニット：4体まで個別、それ以上は持ち主ごとに「アイコン×数」にまとめる
   function unitMarks(st, id, cx, cy, colorOf, me) {
-    const us = unitsAt(st, id); let i = 0, out = '';
+    const us = unitsAt(st, id), list = [];
     for (const [uid, u] of Object.entries(us)) {
-      const c = colorOf(uid), mine = uid === me;
-      const mk = (shape, unit, label, name) => {
-        const x = cx - 21 + (i % 3) * 21, y = cy - 8 + Math.floor(i / 3) * 21; i++;
-        const on = mine && ui.selUnit === unit;
-        const data = mine ? `data-unit="${unit}" class="unit"` : '';
-        const ring = on ? `<circle cx="${x}" cy="${y}" r="15" fill="none" stroke="#00f0ff" stroke-width="3.5"/><circle cx="${x}" cy="${y}" r="18" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="3 3"/>` : '';
-        const t = `<title>${esc(ctx_names(uid))}の${name}</title>`;
-        if (shape === 'c') return `${ring}<circle cx="${x}" cy="${y}" r="11" fill="${c}" stroke="#fff" stroke-width="2" ${data}>${t}</circle><text x="${x}" y="${y + 4.5}" class="ub">${label}</text>`;
-        if (shape === 'm') return `${ring}<rect x="${x - 10}" y="${y - 10}" width="20" height="20" rx="3" fill="${c}" stroke="#fff" stroke-width="2" ${data}>${t}</rect><text x="${x}" y="${y + 4.5}" class="ub">${label}</text>`;
-        return `${ring}<circle cx="${x}" cy="${y}" r="7" fill="${c}" stroke="#fff" stroke-width="2" ${data}>${t}</circle>`;
-      };
-      if (u.char) out += mk('c', 'char', '将', 'キャラクター');
       const p = st.players[uid];
-      p.mechs.forEach((m, mi) => { if (m.hex === id) out += mk('m', `m${mi}`, 'M', 'メック'); });
-      p.workers.forEach((w, wi) => { if (w === id) out += mk('w', `w${wi}`, '', 'ワーカー'); });
+      if (u.char) list.push({ uid, shape: 'c', unit: 'char', label: '将', name: 'キャラクター' });
+      p.mechs.forEach((m, mi) => { if (m.hex === id) list.push({ uid, shape: 'm', unit: `m${mi}`, label: 'M', name: 'メック' }); });
+      p.workers.forEach((w, wi) => { if (w === id) list.push({ uid, shape: 'w', unit: `w${wi}`, label: '', name: 'ワーカー' }); });
+    }
+    const dot = (e, x, y, count) => {
+      const c = colorOf(e.uid), mine = e.uid === me, on = mine && ui.selUnit === e.unit;
+      const data = mine && e.unit ? `data-unit="${e.unit}" class="unit"` : '';
+      const ring = on ? `<circle cx="${x}" cy="${y}" r="13" fill="none" stroke="#00f0ff" stroke-width="3"/>` : '';
+      const t = `<title>${esc(ctx_names(e.uid))}の${e.name}${count > 1 ? '×' + count : ''}</title>`;
+      const txt = count > 1 ? `×${count}` : e.label;
+      if (e.shape === 'm') return `${ring}<rect x="${x - 9}" y="${y - 9}" width="18" height="18" rx="3" fill="${c}" stroke="#fff" stroke-width="1.8" ${data}>${t}</rect><text x="${x}" y="${y + 3.5}" class="ub">${txt}</text>`;
+      if (e.shape === 'c') return `${ring}<circle cx="${x}" cy="${y}" r="9.5" fill="${c}" stroke="#fff" stroke-width="1.8" ${data}>${t}</circle><text x="${x}" y="${y + 3.5}" class="ub">${txt}</text>`;
+      return `${ring}<circle cx="${x}" cy="${y}" r="${count > 1 ? 9 : 6.5}" fill="${c}" stroke="#fff" stroke-width="1.8" ${data}>${t}</circle>${count > 1 ? `<text x="${x}" y="${y + 3.5}" class="ub">×${count}</text>` : ''}`;
+    };
+    let out = '';
+    if (list.length <= 4) {
+      const pos = list.length <= 3 ? list.map((_, i) => [(i - (list.length - 1) / 2) * 20, 3]) : [[-10, -4], [10, -4], [-10, 14], [10, 14]];
+      list.forEach((e, i) => { out += dot(e, pos[i][0], pos[i][1], 1); });
+    } else {
+      const groups = [];
+      for (const e of list) { const g = groups.find((x) => x.uid === e.uid && x.shape === e.shape); if (g) g.n++; else groups.push({ ...e, unit: e.shape === 'c' ? 'char' : null, n: 1 }); }
+      const pos = groups.length <= 2 ? groups.map((_, i) => [(i - (groups.length - 1) / 2) * 22, 3]) : groups.map((_, i) => [(i % 3 - 1) * 20, -4 + Math.floor(i / 3) * 18]);
+      groups.forEach((g, i) => { out += dot(g, pos[i][0], pos[i][1], g.n); });
     }
     return out;
   }
@@ -159,7 +174,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (t.phase === 'moving') return movingPanel(ctx);
     if (t.phase === 'bottom') {
       const kb = p.section === 'factory' ? 'factoryMove' : BOTTOM_ORDER[p.section];
-      return `<div class="card"><h2>下段：${kb === 'factoryMove' ? '移動（1ユニット・最大2回）' : BOTTOM_NAMES[kb]}</h2>${bottomForm(ctx, kb)}
+      return `<div class="card"><h2>下段：${kb === 'factoryMove' ? '移動（同じ1ユニットを最大2回）' : BOTTOM_NAMES[kb]}</h2>${bottomForm(ctx, kb)}
         <div class="row"><button class="ghost" data-act="bot-skip">下段を行わない</button></div></div>`;
     }
     return '';
@@ -171,7 +186,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (kind === 'bolster') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="bolster-power">戦力+2</button><button data-act="bolster-card">戦闘カード+1</button></div>`;
     if (kind === 'trade') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="trade-pop">支持+1</button></div>
       <div class="row">資源 ${resSel('trade.r1', ui.trade.r1)} ${resSel('trade.r2', ui.trade.r2)} ${hexBtn('置く領土', 'trade.hex', ui.trade.hex)} <button data-act="trade-res">資源+2</button></div>`;
-    if (kind === 'produce') { const lim = 2 + (p.up.produce || 0); return `<p>生産する領土を最大${lim}か所選んでください（候補が${lim}か所以下なら自動で生産します）</p>
+    if (kind === 'produce') { const lim = 2 + (p.up.produce || 0), cands = producibleHexes(st, me), pk = `${st.gid}.${st.log.length}`; if (ui.pf !== pk) { ui.pf = pk; ui.produce = cands.length <= lim ? [...cands] : []; } return `<p>生産する領土を最大${lim}か所選んでください（候補が${lim}か所以下なら最初から選択済み）</p>
       <div class="chips">${producibleHexes(st, me).map((id) => `<button class="chip ${ui.produce.includes(id) ? 'on' : ''}" data-act="produce-toggle" data-v="${id}">${TERR[MAP.hexes[id].terrain][1]} ${id}</button>`).join('')}</div>
       <div class="row"><button data-act="produce-go" ${ui.produce.length ? '' : 'disabled'}>生産する</button><button class="ghost sm" data-act="produce-clear">クリア</button></div>`; }
     if (kind === 'factory') {
@@ -202,16 +217,19 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       <div class="row"><button data-act="endMove">移動を終える</button></div></div>`;
   }
 
-  const topOpts = (p, cur) => Object.keys(TOP_CUBES).filter((t) => (p.up[t] || 0) < TOP_CUBES[t]).map((t) => `<option value="${t}" ${cur === t ? 'selected' : ''}>${TOP_NAMES[t]}の強化</option>`).join('');
+  const UP_EFFECT = { move: '移動+1マス', bolster: '戦力+1／カード+1', trade: '支持+1／資源+1', produce: '生産+1領土' };
+  const topOpts = (p, cur) => Object.keys(TOP_CUBES).filter((t) => (p.up[t] || 0) < TOP_CUBES[t]).map((t) => `<option value="${t}" ${cur === t ? 'selected' : ''}>${TOP_NAMES[t]}：${UP_EFFECT[t]}</option>`).join('');
+  const slotOpts = (p, cur) => { const m = BASE_MATS[p.mat]; return BOTTOM_ORDER.filter((s) => p.red[s] < m.lower[s][1]).map((s) => { const c = Math.max(0, m.lower[s][0] - p.red[s]); return `<option value="${s}" ${cur === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}：コスト${c}→${Math.max(0, c - 1)}</option>`; }).join(''); };
+  const upNote = '<p class="mute">改良：上段の強化（効果は選択肢に表示）を得て、下段のコストが1下がります。</p>';
   function bottomForm(ctx, kind) {
     const { st, me } = ctx, p = st.players[me], m = BASE_MATS[p.mat];
-    if (kind === 'factoryMove') return `<div class="row"><button data-act="bot-factory">移動を始める</button></div>`;
+    if (kind === 'factoryMove') return `<p class="mute">工場セクションの下段です。<b>好きな1ユニット</b>（ワーカー・メック・キャラクターのどれでも）を選び、そのユニットだけを<b>最大2回</b>続けて移動できます（1回ごとに通常の移動力ぶん進める）。2体を動かすことはできません。</p><div class="row"><button data-act="bot-factory">移動を始める</button></div>`;
     const cost = Math.max(0, m.lower[kind][0] - p.red[kind]);
     const head = `<p>コスト：${RES_NAMES[BOTTOM_RES[kind]]} ${cost}（持っている${RES_NAMES[BOTTOM_RES[kind]]} ${resTotals(st, me)[BOTTOM_RES[kind]]}）／ 報酬：${m.lower[kind][2]}コイン</p>`;
     const b = ui.bot;
     if (kind === 'upgrade') {
       const opts = BOTTOM_ORDER.filter((s) => p.red[s] < m.lower[s][1]);
-      return head + `<div class="row">上段から取る <select data-bind="bot.top">${topOpts(p, b.top)}</select> 下段に置く <select data-bind="bot.slot">${opts.map((s) => `<option value="${s}" ${b.slot === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}のコスト-1</option>`).join('')}</select><button data-act="bot-go">改良する</button></div>`;
+      return head + upNote + `<div class="row">上段から取る <select data-bind="bot.top">${topOpts(p, b.top)}</select> 下段に置く <select data-bind="bot.slot">${slotOpts(p, b.slot)}</select><button data-act="bot-go">改良する</button></div>`;
     }
     if (kind === 'deploy') {
       const free = [0, 1, 2, 3].filter((i) => !p.mechs.some((x) => x.slot === i));
@@ -251,7 +269,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       body = `メック <select data-bind="free.mech">${free.map((i) => `<option value="${i}" ${+f.mech === i ? 'selected' : ''}>${ABILITY_NAMES[MECH_SLOTS[p.faction][i]]}</option>`).join('')}</select> ${hexBtn('配置領土', 'free.hex', f.hex)}`;
     } else if (k === 'upgrade') {
       const opts = BOTTOM_ORDER.filter((s) => p.red[s] < BASE_MATS[p.mat].lower[s][1]);
-      body = `上段から取る <select data-bind="free.top">${topOpts(p, f.top)}</select> 下段に置く <select data-bind="free.slot">${opts.map((s) => `<option value="${s}" ${f.slot === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}のコスト-1</option>`).join('')}</select>`;
+      body = upNote + `上段から取る <select data-bind="free.top">${topOpts(p, f.top)}</select> 下段に置く <select data-bind="free.slot">${slotOpts(p, f.slot)}</select>`;
     } else if (k === 'enlist') {
       const fromFree = BOTTOM_ORDER.filter((s) => !p.recruits.some((r) => r.section === s));
       const bonFree = RECRUIT_ONETIME.filter((x) => !p.recruits.some((r) => r.bonus === x));
@@ -307,11 +325,13 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   const II = (n, t) => `<img class="ri" src="${n}.png" title="${t}" alt="${t}">`;
   const ICO = { coins: II('coin', 'コイン'), power: II('power', '戦力'), pop: II('pop', '支持'), star: II('star', '星'), card: '<span class="ic" title="戦闘カード">🂠</span>', worker: II('people', 'ワーカー'), mech: '<span class="ic" title="メック">▣</span>' };
   const FACE = (f, n = 26) => `<img class="face" style="width:${n}px;height:${n}px" src="faction_${f}.jpg" alt="">`;
+  const gauge = (ico, v, max) => `<span class="gauge" title="${v} / 最大${max}">${ico}<i class="gbar"><i style="width:${Math.min(100, (v / max) * 100)}%"></i></i><b>${v}<small>/${max}</small></b></span>`;
   function comparePanel(ctx) {
     const { st } = ctx;
     const rows = [[ICO.pop, (p) => p.pop, 18], [ICO.power, (p) => p.power, 16], [ICO.star, (p) => p.stars.length, 6], [ICO.coins, (p) => p.coins, Math.max(20, ...Object.values(st.players).map((p) => p.coins))]];
     return `<div class="card"><h2>プレイヤー比較</h2>${st.order.map((u, i) => `<span class="legend">${FACE(st.players[u].faction, 22)}<i style="background:${COLORS[i]}"></i>${nm(ctx, u)}（${BASE_FACTIONS[st.players[u].faction].name}）</span>`).join('')}
-      ${rows.map(([lab, f, mx]) => `<div class="cmp"><b class="cl">${lab}</b>${st.order.map((u, i) => { const v = f(st.players[u]); return `<div class="bar"><span class="fill" style="width:${Math.max(3, (v / mx) * 100)}%;background:${COLORS[i]}"></span><span class="val">${FACE(st.players[u].faction, 18)} ${v}</span></div>`; }).join('')}</div>`).join('')}</div>`;
+      ${rows.map(([lab, f, mx]) => `<div class="cmp"><b class="cl">${lab}</b><div class="track">${[...Array(mx + 1).keys()].filter((i) => i % (mx > 20 ? 5 : 2) === 0).map((i) => `<s style="left:${(i / mx) * 100}%"><u>${i}</u></s>`).join('')}${st.order.map((u, i) => { const v = f(st.players[u]); return `<span class="pin" style="left:${Math.min(100, (v / mx) * 100)}%;top:${4 + i * 2}px;border-color:${COLORS[i]};background:${COLORS[i]}" title="${esc(nm(ctx, u))}：${v}"><em>${v}</em></span>`; }).join('')}<small class="mx">最大${mx}</small></div>
+      </div>`).join('')}</div>`;
   }
 
   const RESIMG = (r) => `<img class="ri" src="${r}.png" alt="${RES_NAMES[r]}">`;
@@ -344,7 +364,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     }).join('');
     return `<div class="mat fmat" style="background-image:linear-gradient(rgba(10,8,6,.55),rgba(10,8,6,.88)),url(faction_${f}.jpg)">
       <div class="mh"><b>${F.name}</b> <span class="pas">固有：${PASSIVE[f][0]}</span> <span class="mute">${PASSIVE[f][1]}</span></div>
-      <div class="chips2"><span>${ICO.power}<b>${p.power}</b></span><span>${ICO.pop}<b>${p.pop}</b></span><span>${ICO.coins}<b>${p.coins}</b></span><span>${ICO.star}<b>${p.stars.length}/6</b></span><span>${ICO.card}<b>${hand.join(',') || '-'}</b></span><span>${ICO.worker}<b>${p.workers.length}+${p.matWorkers}</b></span><span>${ICO.mech}<b>${p.mechs.length}/4</b></span>${['oil','metal','wood','food'].map((r) => `<span>${RESIMG(r)}<b>${resTotals(st, me)[r]}</b></span>`).join('')}</div>
+      <div class="chips2">${gauge(ICO.power, p.power, 16)}${gauge(ICO.pop, p.pop, 18)}<span>${ICO.coins}<b>${p.coins}</b></span>${gauge(ICO.star, p.stars.length, 6)}<span>${ICO.card}<b>${hand.join(',') || '-'}</b></span><span>${ICO.worker}<b>${p.workers.length}+${p.matWorkers}</b></span>${gauge(ICO.mech, p.mechs.length, 4)}${['oil','metal','wood','food'].map((r) => `<span>${RESIMG(r)}<b>${resTotals(st, me)[r]}</b></span>`).join('')}</div>
       <div class="slots">${slots}</div>
       <div class="mute small">メックを配備するとき、解放する能力を上から選べます（キャラクターと全メックに適用）。</div></div>`;
   }
@@ -375,14 +395,20 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const inner = panelAction(ctx);
     if (!inner) return '';
     if (st.over) return `<div class="modal wide">${inner}</div>`;
-    return `<div class="modal">${matWrap(ctx, inner)}</div>`;
+    const pos = ui.mpos ? `left:${ui.mpos.x}px;top:${ui.mpos.y}px;transform:none;` : '';
+    return `<div class="modal ${ui.mfold ? 'fold' : ''}" style="${pos}"><div class="mdrag" data-drag title="ドラッグで移動／クリックでたたむ">⠿ ${ui.mfold ? '▼ ひらく' : '▲ たたむ'}（ドラッグで移動）</div>${ui.mfold ? '' : matWrap(ctx, inner)}</div>`;
   }
   function objBox(ctx) {
     const { st, me, priv } = ctx, p = st.players[me];
     const list = (priv?.objectives || []).map((id) => byId(OBJECTIVES, id)).filter(Boolean);
     const bt = byId(BONUS_TILES, st.bonusTile);
     if (!ui.objOpen) return `<div class="objbox shut"><button class="ghost sm" data-act="objtoggle">目的カード ${list.length}枚 ▼</button></div>`;
-    return `<div class="objbox"><button class="ghost sm fold" data-act="objtoggle">▲ たたむ</button><b>目的カード</b>${list.length ? list.map((o) => `<div class="ob"><b>${esc(o.name)}</b><span>${esc(o.text)}</span></div>`).join('') : '<div class="ob mute">なし</div>'}${p.stars.includes('objective') ? '<div class="ob">★ 目的の星を獲得済み</div>' : ''}<div class="ob bt"><b>建物ボーナス</b><span>${esc(bt?.text || '')}</span></div></div>`;
+    const JP = { 1: '高地の利', 11: '人口の優位', 16: '羊の群れの狼', 24: '人間の盾', 25: '忌まわしき戦争屋', 26: '多様な生産', 27: '地域基盤整備' };
+    const got = p.stars.includes('objective');
+    const row = (o) => { let ok = false; try { ok = !!o.check(p, objectiveHelpers(st, me)); } catch { /* 無視 */ } return `<div class="ob ${ok ? 'okc' : ''}"><b>${ok ? '✅' : '⬜'} ${esc(JP[o.no] || o.name)}</b><span><u>条件</u> ${esc(o.text)}</span><em>${ok ? '条件を満たしています（自動で星を獲得）' : '未達成'}</em></div>`; };
+    return `<div class="objbox"><button class="ghost sm fold" data-act="objtoggle">▲ たたむ</button><b>目的カード</b>
+      <div class="ob mute">条件を満たした時点で自動的に星1つを獲得します（操作不要・星は1枚分のみ）</div>
+      ${list.length ? list.map(row).join('') : '<div class="ob mute">なし</div>'}${got ? '<div class="ob">⭐ 目的の星を獲得済み</div>' : ''}<div class="ob bt"><b>建物ボーナス</b><span>${esc(bt?.text || '')}</span></div></div>`;
   }
   function hexPanel(ctx) {
     const { st } = ctx;
@@ -434,7 +460,6 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (pd?.type === 'free') {
       const h = pd.queue[0], kinds = h.alt || [h.k];
       if (!kinds.some((k) => canDo(st, me, k, true))) return once(`fs${sig}`, { t: 'free', skip: true });
-      if (h.k === 'produce') { const ph = producibleHexes(st, me); return ph.length <= 2 + (p.up.produce || 0) ? once(`fp${sig}`, { t: 'free', kind: 'produce', hexes: ph }) : null; }
       return null;
     }
     if (pd?.type === 'encounter' && pd.cardId) {
@@ -458,9 +483,10 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         if (c && c.check(p, objectiveHelpers(st, me))) return once(`ob${id}${sig}`, { t: 'objective', cardId: id });
       }
     }
+    if (t.phase === 'end') return once(`ee${sig}`, { t: 'endTurn' });
     if (t.phase === 'top') {
       const kind = p.section === 'factory' ? 'factory' : topOf(p.mat, p.section);
-      if (kind === 'produce') { const ph = producibleHexes(st, me); if (!ph.length) return once(`pr${sig}`, { t: 'top', kind: 'skip' }); return ph.length <= 2 + (p.up.produce || 0) ? once(`pr${sig}`, { t: 'top', kind: 'produce', hexes: ph }) : null; }
+      if (kind === 'produce') { const ph = producibleHexes(st, me); if (!ph.length) return once(`pr${sig}`, { t: 'top', kind: 'skip' }); }
       if ((kind === 'bolster' || kind === 'trade') && !canDo(st, me, kind)) return once(`ts${sig}`, { t: 'top', kind: 'skip' });
       if (kind === 'factory') { const c = byId(FACTORY_CARDS, p.factory), { card = 0, anyRes = 0, diff, ...rest } = c.cost; if (p.hand < card || !canPay(st, me, rest)) return once(`fk${sig}`, { t: 'top', kind: 'skip' }); }
     }
@@ -636,6 +662,18 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     } else setPath(k, el.value);
   }
 
+  let mdr = null;
+  root.addEventListener('pointerdown', (e) => {
+    const h = e.target.closest?.('[data-drag]'); if (!h) return;
+    const m = h.parentElement, r = m.getBoundingClientRect(); mdr = { dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY, m, moved: false };
+    e.preventDefault();
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!mdr) return;
+    if (Math.abs(e.clientX - mdr.x0) + Math.abs(e.clientY - mdr.y0) > 5) mdr.moved = true;
+    if (mdr.moved) { mdr.m.style.transform = 'none'; mdr.m.style.left = `${e.clientX - mdr.dx}px`; mdr.m.style.top = `${e.clientY - mdr.dy}px`; ui.mpos = { x: e.clientX - mdr.dx, y: e.clientY - mdr.dy }; }
+  });
+  window.addEventListener('pointerup', () => { if (!mdr) return; if (!mdr.moved) { ui.mfold = !ui.mfold; render(); } mdr = null; });
   let drag = false;
   root.addEventListener('pointerdown', (e) => {
     const u = e.target.closest?.('[data-unit]'); const ctx = getCtx();

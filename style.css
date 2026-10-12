@@ -145,3 +145,24 @@ main:has(.game){padding:4px 6px}
 .modal{top:calc(70px + var(--S) * .26);bottom:auto;right:auto;left:calc(6px + var(--S) + 6px + (100vw - var(--S) - 18px) / 2);transform:translateX(-50%);width:min(760px,calc(100vw - var(--S) - 40px));max-height:calc(var(--S) * .7);font-size:16px}
 .modal button,.modal select{font-size:16px}
 @media (max-width:900px){.modal{left:50%;top:auto;bottom:10px;width:94vw}}
+
+/* v10 */
+.mdrag{cursor:grab;background:#3a2a10;color:#ffe9a8;padding:6px 12px;border-radius:12px 12px 0 0;font-weight:bold;user-select:none;touch-action:none}
+.modal.fold{max-height:none;width:auto;min-width:220px}.modal.fold .mdrag{border-radius:12px}
+
+/* v11 */
+.rc{font:700 9px sans-serif}
+.gauge{display:inline-flex;align-items:center;gap:4px}
+.gbar{display:inline-block;width:46px;height:9px;background:#0007;border:1px solid #fff6;border-radius:5px;overflow:hidden}
+.gbar i{display:block;height:100%;background:linear-gradient(90deg,#f2b84b,#ffe08a)}
+.gauge small{opacity:.7;font-weight:normal}
+.cmp{display:flex;align-items:center;gap:8px;margin:8px 0}
+.cmp .cl{flex:0 0 28px}
+.track{position:relative;flex:1;height:30px;background:#2a2217;border-radius:8px;border:1px solid #fff3}
+.track s{position:absolute;top:0;bottom:0;border-left:1px dashed #fff3;text-decoration:none}
+.track s u{position:absolute;bottom:-14px;left:-4px;font-size:10px;color:#cbb;text-decoration:none}
+.track .mx{position:absolute;right:4px;top:-13px;font-size:10px;color:#cbb}
+.pin{position:absolute;width:20px;height:20px;margin-left:-10px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px #000a}
+.pin em{font:700 11px sans-serif;font-style:normal;color:#fff;text-shadow:0 0 3px #000}
+.ob.okc{border-left:4px solid #6f6}.ob em{display:block;font-style:normal;font-size:12px;opacity:.85}.ob u{opacity:.7}
+.cmp{margin:12px 0 20px}.track .mx{top:-14px}

@@ -109,3 +109,23 @@ main:has(.game){max-width:none;padding:6px 10px}
 .tools .on{background:#3ddc84;color:#06240f}
 .acol small{font-size:11px}
 @media (max-width:900px){.game{grid-template-columns:1fr}.side2{max-height:none}.boardwrap{aspect-ratio:1}}
+
+/* ---- v8: 盤面と同じ高さにマットを並べる・ポップアップ ---- */
+:root{--S:min(calc(100vh - 118px),calc((100vw - 36px) / 1.88))}
+.game{grid-template-columns:var(--S) calc(var(--S) * .98);justify-content:start;gap:8px}
+.boardwrap{width:var(--S);height:var(--S)}
+.mats2{height:var(--S);display:grid;grid-template-rows:1fr 1fr;gap:6px;min-width:0}
+.mats2 .mat,.mats2 .fwrap{height:100%;min-height:0;aspect-ratio:auto}
+.fwrap{display:flex;gap:6px;min-height:0}.fwrap .fmat{flex:1;min-width:0}
+.fwrap .acol.fac{flex:0 0 22%;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;background:rgba(0,0,0,.6);border:2px solid #8a7444;color:#f3ead8;padding:4px;cursor:default;overflow:hidden}
+.fwrap .acol.fac.can{cursor:pointer;border-color:#3ddc84;box-shadow:0 0 0 2px #3ddc84}.fwrap .acol.fac.cur{outline:3px solid #19d3ff}
+.fwrap .acol.fac img{max-height:75%;max-width:100%;object-fit:contain;border-radius:4px}
+.mats2 .mat{overflow:hidden;font-size:12px;padding:6px 8px}.mats2 .mat .slots{gap:4px}.mats2 .slot{padding:3px 6px;font-size:11px}
+.acols{height:calc(100% - 22px)}.acol .as small{display:block;font-size:10px;color:#cfe}
+.below{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:10px}
+.modal{position:fixed;right:14px;bottom:14px;width:min(560px,46vw);max-height:72vh;overflow:auto;z-index:30;box-shadow:0 8px 30px rgba(0,0,0,.6);border-radius:12px}
+.modal.wide{width:min(760px,90vw)}.modal .matbg{margin:0}
+.objbox.shut{width:auto;padding:2px}.objbox .fold{float:right}
+.stp{font:700 22px sans-serif;fill:#001a22;paint-order:stroke;stroke:#fff;stroke-width:4px;pointer-events:none}
+@media (max-width:900px){.game{grid-template-columns:1fr}.boardwrap{width:100%;height:auto;aspect-ratio:1}.mats2{height:auto}.mats2 .mat,.mats2 .fwrap{min-height:320px}.modal{width:94vw}}
+.modal{top:200px;bottom:auto;max-height:calc(var(--S) * .5)}

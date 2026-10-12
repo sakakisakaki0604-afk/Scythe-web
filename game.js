@@ -154,7 +154,7 @@ export function moveTargets(st, uid, unit, stepsAllowed) {
   const from = unitHex(st, uid, unit);
   if (!from) return [];
   const isWorker = unit[0] === 'w';
-  const maxSteps = stepsAllowed ?? (isWorker ? 1 : 1 + (hasAbility(st, uid, 'speed') ? 1 : 0));
+  const maxSteps = stepsAllowed ?? (isWorker ? 1 : 1 + (hasAbility(st, uid, 'speed') ? 1 : 0) + (p.up?.move || 0));
   const rw = hasAbility(st, uid, 'riverwalk') ? RIVERWALK[p.faction] : [];
   const seen = new Map([[from, 0]]);
   const out = [];
@@ -195,12 +195,12 @@ const sectionBottom = (p, s) => (s === 'factory' ? 'factoryMove' : BOTTOM_ORDER[
 export function legalSections(st, uid) {
   const p = st.players[uid];
   const all = [0, 1, 2, 3, ...(p.factory ? ['factory'] : [])];
-  return all.filter((s) => s !== p.last || p.faction === 'rusviet');
+  return all.filter((s) => s !== p.section || p.faction === 'rusviet');
 }
 
 function startMove(st, uid, kind) {
   const t = st.turn;
-  t.move = { kind, left: kind === 'factoryMove' ? 2 : 2 + (kind === 'move' ? st.players[uid].up?.move || 0 : 0), moved: [], single: null, idx: 0 };
+  t.move = { kind, left: 2, moved: [], single: null, idx: 0 };
   t.phase = 'moving';
 }
 
@@ -287,7 +287,7 @@ export function apply(stIn, uid, action, rng = Math.random) {
     }
     case 'endTurn': {
       if (st.pending) fail('処理中の項目があります');
-      if (phase === 'section') { const ls = legalSections(st, uid); p.last = p.section; p.section = ls[0]; log(st, uid, '何も行わずにターンを終了'); }
+      if (phase === 'section') { p.last = p.section; p.section = null; log(st, uid, '何も行わずにターンを終了（休み）'); }
       else if (phase === 'moving') {
         finishMove(st, uid, ctx);
         if (st.pending) break; // 戦闘・遭遇を解決してから、もう一度終了する
@@ -457,7 +457,7 @@ function doCombat(st, uid, a, ctx) {
   if (attWins && workersForced && !hasAbility(st, winner, 'camaraderie')) losePop(st, winner, workersForced);
   const revealed = choice[loser === pd.attacker ? 'att' : 'def'];
   if (revealed.sum > 0) grantCards(st, loser, 1, ctx);
-  // 勝者の星（最大2、ザクソンは無制限）
+  // 勝者の星（最大2、ザクセンは無制限）
   const maxStars = wp.faction === 'saxony' ? Infinity : 2;
   if (wp.combatWins < maxStars) { wp.combatWins++; addStar(st, winner, `combat${wp.combatWins}`); }
   log(st, winner, `戦闘に勝利（${choice.att.sum} 対 ${choice.def.sum}）`);
@@ -492,7 +492,9 @@ function enqueueFree(st, hex, items, after) {
 function doProduce(st, uid, hexes, ctx) {
   const p = st.players[uid];
   hexes = [...new Set(hexes || [])];
+  const lim = 2 + (p.up?.produce || 0);
   if (!hexes.length) fail('生産できる領土がありません');
+  if (hexes.length > lim) fail(`生産できる領土は最大${lim}か所です`);
   for (const h of hexes) {
     if (controller(st, h) !== uid) fail('支配している領土で生産します');
     const mill = p.structures.some((s) => s.type === 'mill' && s.hex === h) ? 1 : 0;
@@ -503,7 +505,6 @@ function doProduce(st, uid, hexes, ctx) {
     else if (TERRAIN_RES[terr]) st.hexes[h].res[TERRAIN_RES[terr]] = (st.hexes[h].res[TERRAIN_RES[terr]] || 0) + n;
     else fail('この地形では生産できません');
   }
-  if (p.up?.produce && hexes.length && TERRAIN_RES[H(hexes[0]).terrain]) { const r0 = TERRAIN_RES[H(hexes[0]).terrain]; st.hexes[hexes[0]].res[r0] += p.up.produce; }
   log(st, uid, `生産（${hexes.length}か所）`);
 }
 

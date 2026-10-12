@@ -4,10 +4,10 @@
 
 export const BASE_FACTIONS = {
   nordic:  { name: '北方王国', en: 'Nordic',  power: 4, combatCards: 1, ability: 'Swim', verified: 'doc' },
-  crimea:  { name: 'クリミア', en: 'Crimea',  power: 3, combatCards: 3, ability: 'Coercion', verified: 'doc' },
-  saxony:  { name: 'ザクソン帝国', en: 'Saxony', power: 1, combatCards: 4, ability: 'Dominate', verified: 'doc' },
-  polania: { name: 'ポラニア共和国', en: 'Polania', power: 2, combatCards: 2, ability: 'Meander', verified: 'doc' },
-  rusviet: { name: 'ラスヴィエト連邦', en: 'Rusviet', power: 3, combatCards: 4, ability: 'Relentless', verified: 'doc' },
+  crimea:  { name: 'クリミア・ハン国', en: 'Crimea',  power: 3, combatCards: 3, ability: 'Coercion', verified: 'doc' },
+  saxony:  { name: 'ザクセン帝国', en: 'Saxony', power: 1, combatCards: 4, ability: 'Dominate', verified: 'doc' },
+  polania: { name: 'ポーラニア共和国', en: 'Polania', power: 2, combatCards: 2, ability: 'Meander', verified: 'doc' },
+  rusviet: { name: 'ロスヴィエト連邦', en: 'Rusviet', power: 3, combatCards: 4, ability: 'Relentless', verified: 'doc' },
 };
 
 // 下段アクション: [費用(基本), 減額可能数, コイン報酬]
@@ -122,7 +122,7 @@ export const ABILITY_TEXT = {
   peoples_army: () => '自分のワーカーがいる領土の戦闘で、戦闘カードを1枚多く使える。【未実装】',
 };
 export const TOP_TEXT = {
-  move: '最大2体を1領土ずつ移動（またはコイン+1）。改良1つにつき+1体',
+  move: '最大2体を移動（またはコイン+1）。キャラ・メックは基本1マス、スピードで+1、改良で+1マス',
   bolster: '1コイン → 戦力+2 か 戦闘カード+1',
   trade: '1コイン → 支持+1 か 資源2個',
   produce: 'ワーカーのいる支配領土で最大2か所を生産（改良で3か所）。各ワーカー1体につき1個',
@@ -133,3 +133,5 @@ export const BOTTOM_TEXT = {
 
 // 改良キューブ: 上段の各アクションにある数（6個）。取ると上段が強化され、下段に置くとコストが下がる。
 export const TOP_CUBES = { move: 1, bolster: 2, trade: 2, produce: 1 };
+
+export const STRUCT_TEXT = { monument: '鼓舞のたびに 支持+1', mill: '生産のとき、この領土は+1個', mine: 'トンネルとして使える（移動）', armory: '交易のたびに 戦力+1' };

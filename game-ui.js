@@ -2,7 +2,7 @@
 import { MAP, DIRS, PX } from './legacy-map.js';
 import {
   BASE_FACTIONS, BASE_MATS, MECH_SLOTS, ABILITY_NAMES, ABILITY_TEXT, PASSIVE, TOP_TEXT, BOTTOM_TEXT, IMPLEMENTED_ABILITIES, BOTTOM_ORDER, BOTTOM_NAMES, BOTTOM_RES,
-  TOP_NAMES, STRUCT_NAMES, RES_NAMES, TOP_CUBES, RECRUIT_ONETIME, topOf, structOf,
+  TOP_NAMES, STRUCT_NAMES, STRUCT_TEXT, RES_NAMES, TOP_CUBES, RECRUIT_ONETIME, topOf, structOf,
 } from './data.js';
 import {
   controller, controlled, resTotals, canPay, canDo, producibleHexes, unitsAt, moveTargets, legalSections, objectiveHelpers, scoreOf, RuleError,
@@ -20,7 +20,7 @@ const corner = (cx, cy, i) => { const a = (Math.PI / 180) * (60 * i - 30); retur
 
 export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   const ui = {
-    selUnit: null, targets: [], carry: false, pick: null, sel: null, zoom: 1, resMode: false, produce: [],
+    selUnit: null, targets: [], carry: false, pick: null, sel: null, zoom: 1, resMode: false, objOpen: true, produce: [],
     trade: { r1: 'oil', r2: 'wood', hex: null }, free: { top: 'move', kind: null, hex: null, type: 'monument', mech: 0, slot: 'upgrade', from: 'upgrade', bonus: 'power' }, bot: { top: 'move', slot: 'upgrade', mech: 0, hex: null, type: 'monument', from: 'upgrade', bonus: 'power' },
     fac: { hex: null, r1: 'oil', r2: 'wood' }, combat: { dial: 0, cards: [] }, enc: [], sound: true, lastLog: 0,
   };
@@ -61,7 +61,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         : ui.resMode && h.terrain === 'village' ? `<image href="people.png" x="${-SIZE * 0.55}" y="${-SIZE * 0.55}" width="${SIZE * 1.1}" height="${SIZE * 1.1}" opacity=".95" pointer-events="none"/>` : '';
       const dim = ui.resMode && !h.home ? `<polygon points="${poly}" fill="#000" fill-opacity=".5" pointer-events="none"/>` : '';
       hexes += `<g class="hx" data-hex="${id}" transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">
-        ${dim}${shape}${rIcon}
+        ${dim}${shape}${rIcon}${isT ? `<text y="6" text-anchor="middle" class="stp">${ui.targets.find((t) => t.to === id)?.steps ?? ''}</text>` : ''}
         ${hs.enc ? `<circle cx="${SIZE * 0.62}" cy="${-SIZE * 0.3}" r="7" fill="#e8c14a" stroke="#222"><title>遭遇トークン</title></circle><text x="${SIZE * 0.62}" y="${-SIZE * 0.3 + 4}" class="eb">!</text>` : ''}
         ${structMark(st, hs, colorOf, ctx)}
         ${resChips(hs, 0, 0)}
@@ -73,8 +73,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   function structMark(st, hs, colorOf, ctx) {
     if (!hs.structure) return '';
     const c = colorOf(hs.structure.owner), n = STRUCT_NAMES[hs.structure.type];
-    const g = { monument: '▲', mill: '✲', mine: '⛏', armory: '⚔' }[hs.structure.type];
-    return `<g class="struct"><title>${n}（${esc(ctx.names(hs.structure.owner))}）</title><rect x="${-SIZE * 0.95}" y="${-SIZE * 0.78}" width="22" height="22" rx="5" fill="${c}" stroke="#fff" stroke-width="2"/><text x="${-SIZE * 0.95 + 11}" y="${-SIZE * 0.78 + 17}" class="sb">${g}</text></g>`;
+    return `<g class="struct"><title>${n}（${esc(ctx.names(hs.structure.owner))}）</title><circle cx="${-SIZE * 0.62}" cy="${-SIZE * 0.52}" r="14" fill="${c}" stroke="#fff" stroke-width="2.5"/><image href="${hs.structure.type}.png" x="${-SIZE * 0.62 - 10}" y="${-SIZE * 0.52 - 10}" width="20" height="20"/></g>`;
   }
   function resChips(hs, cx, cy) {
     const items = Object.entries(hs.res).filter(([, v]) => v > 0);
@@ -124,7 +123,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (st.over) return resultPanel(ctx);
     const mine = st.turnUid === me;
     if (st.pending?.type === 'combat') return combatPanel(ctx);
-    if (!mine) return `<div class="card"><h2>${nm(ctx, st.turnUid)} の手番</h2><p class="mute">相手の操作を待っています。</p></div>`;
+    if (!mine) return '';
     if (st.pending?.type === 'encounter') return encounterPanel(ctx);
     if (st.pending?.type === 'free') return freePanel(ctx);
     if (st.pending?.type === 'factory') {
@@ -132,11 +131,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         const c = byId(FACTORY_CARDS, id); return `<div class="opt facopt"><img src="${c.img}" alt="${esc(c.name)}"><div><b>${esc(c.name)}</b><div class="mute">${esc(c.text)}</div><button data-act="factory-pick" data-v="${id}">これにする</button></div></div>`;
       }).join('')}</div>`;
     }
-    if (t.phase === 'section') {
-      const ok = legalSections(st, me);
-      return `<div class="card"><h2>あなたの手番：セクションを選ぶ</h2><p class="mute">下の行動マットの列をクリックして、今回のセクションを選びます（前回と別の列）。</p>
-        <div class="cols" hidden>${[0, 1, 2, 3, ...(p.factory ? ['factory'] : [])].map((s) => `<button class="col" data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}>${s === 'factory' ? sectionLabel(p, s) : `<b>${TOP_NAMES[topOf(p.mat, s)]}</b><i>${BASE_MATS[p.mat].columns[s].split('+')[1] ? STRUCT_NAMES[structOf(p.mat, s)] : ''}</i><u>${BOTTOM_NAMES[BOTTOM_ORDER[s]]}</u>`}</button>`).join('')}</div></div>`;
-    }
+    if (t.phase === 'section') return '';
     const kindTop = p.section === 'factory' ? 'factory' : topOf(p.mat, p.section);
     if (t.phase === 'top') return `<div class="card"><h2>上段：${TOP_NAMES[kindTop]}</h2>${topForm(ctx, kindTop)}
       <div class="row"><button class="ghost" data-act="top-skip">上段を行わない</button></div></div>`;
@@ -146,7 +141,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       return `<div class="card"><h2>下段：${kb === 'factoryMove' ? '移動（1ユニット・最大2回）' : BOTTOM_NAMES[kb]}</h2>${bottomForm(ctx, kb)}
         <div class="row"><button class="ghost" data-act="bot-skip">下段を行わない</button></div></div>`;
     }
-    return `<div class="card"><h2>手番の終わり</h2>${objectivePanel(ctx)}<div class="row"><button data-act="endTurn">ターンを終了する</button></div></div>`;
+    return '';
   }
 
   function topForm(ctx, kind) {
@@ -155,7 +150,9 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (kind === 'bolster') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="bolster-power">戦力+2</button><button data-act="bolster-card">戦闘カード+1</button></div>`;
     if (kind === 'trade') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="trade-pop">支持+1</button></div>
       <div class="row">資源 ${resSel('trade.r1', ui.trade.r1)} ${resSel('trade.r2', ui.trade.r2)} ${hexBtn('置く領土', 'trade.hex', ui.trade.hex)} <button data-act="trade-res">資源+2</button></div>`;
-    if (kind === 'produce') return `<p>生産しています…（ワーカーのいる支配領土をすべて自動で生産）</p>`;
+    if (kind === 'produce') { const lim = 2 + (p.up.produce || 0); return `<p>生産する領土を最大${lim}か所選んでください（候補が${lim}か所以下なら自動で生産します）</p>
+      <div class="chips">${producibleHexes(st, me).map((id) => `<button class="chip ${ui.produce.includes(id) ? 'on' : ''}" data-act="produce-toggle" data-v="${id}">${TERR[MAP.hexes[id].terrain][1]} ${id}</button>`).join('')}</div>
+      <div class="row"><button data-act="produce-go" ${ui.produce.length ? '' : 'disabled'}>生産する</button><button class="ghost sm" data-act="produce-clear">クリア</button></div>`; }
     if (kind === 'factory') {
       const c = byId(FACTORY_CARDS, p.factory), n = c.cost.anyRes || 0;
       return `<div class="facopt"><img src="${c.img}" alt=""><div><b>${esc(c.name)}</b><div class="mute">${esc(c.text)}</div>
@@ -170,16 +167,17 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   const MAT_IMG = { industrial: 1, engineering: 2, patriotic: 3, mechanical: 4, agricultural: 5, militant: 6, innovative: 7 };
   const FAC_IMG = { nordic: 'nordic', crimea: 'crimea', saxony: 'saxony', polania: 'polania', rusviet: 'rusviet', togawa: 'togawa' };
   const matWrap = (ctx, inner) => `<div class="matbg" style="background-image:linear-gradient(rgba(12,10,8,.35),rgba(12,10,8,.7)),url(mat_${MAT_IMG[ctx.st.players[ctx.me].mat] || 1}.jpg)">${inner}</div>`;
+  const stepsOf = (p, u) => (u[0] === 'w' ? 1 : 1 + (p.mechs.some((m) => MECH_SLOTS[p.faction][m.slot] === 'speed') ? 1 : 0) + (p.up.move || 0));
   function movingPanel(ctx) {
     const { st, me } = ctx, p = st.players[me], mv = st.turn.move;
     const unitName = (u) => (u === 'char' ? 'キャラクター' : u[0] === 'm' ? `メック${+u.slice(1) + 1}` : `ワーカー${+u.slice(1) + 1}`);
     const here = (u) => (u === 'char' ? p.char : u[0] === 'm' ? p.mechs[+u.slice(1)].hex : p.workers[+u.slice(1)]);
     const units = ['char', ...p.mechs.map((_, i) => `m${i}`), ...p.workers.map((_, i) => `w${i}`)];
     const done = mv.kind === 'move' ? mv.moved : [];
-    return `<div class="card"><h2>移動中（残り${mv.left}回）</h2>
+    return `<div class="card"><h2>移動中（あと${mv.left}体まで）</h2>
       <p class="mute">動かすユニットを選び、黄色の領土をクリック。盤面上の自分のユニットをクリックしても選べます。</p>
       <label class="chk"><input type="checkbox" data-bind="carry" ${ui.carry ? 'checked' : ''}> 出発地の資源をすべて運ぶ</label>
-      <div class="units">${units.map((u) => `<button class="sm ${ui.selUnit === u ? '' : 'ghost'}" data-act="unit" data-v="${u}" ${done.includes(u) ? 'disabled' : ''}>${unitName(u)} @${here(u)}</button>`).join('')}</div>
+      <div class="units">${units.map((u) => `<button class="sm ${ui.selUnit === u ? '' : 'ghost'}" data-act="unit" data-v="${u}" ${done.includes(u) ? 'disabled' : ''}>${unitName(u)} @${here(u)}（${stepsOf(p, u)}マス）</button>`).join('')}</div>
       <div class="row"><button data-act="endMove">移動を終える</button></div></div>`;
   }
 
@@ -214,7 +212,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const c = byId(ENCOUNTERS, pd.cardId), max = p.faction === 'polania' ? 2 : 1;
     const okOpt = (o) => !o.unsupported && canPay(st, me, o.cost);
     const none = !c.options.some(okOpt);
-    return `<div class="card"><h2>遭遇 #${c.no}</h2><p class="mute">選択肢を${max === 2 ? '最大2つ（ポラニア）' : '1つ'}選びます。</p>
+    return `<div class="card"><h2>遭遇 #${c.no}</h2><p class="mute">選択肢を${max === 2 ? '最大2つ（ポーラニア）' : '1つ'}選びます。</p>
       ${c.options.map((o, i) => `<label class="opt ${okOpt(o) ? '' : 'dim'}"><input type="${max === 2 ? 'checkbox' : 'radio'}" name="enc" data-bind="enc" value="${i}" ${okOpt(o) ? '' : 'disabled'} ${ui.enc.includes(i) ? 'checked' : ''}> ${esc(o.text)}${o.unsupported ? ' <span class="tag">未実装</span>' : ''}</label>`).join('')}
       <div class="row"><button data-act="enc-go" ${none || ui.enc.length ? '' : 'disabled'}>${none ? '見送る（選べる選択肢なし）' : 'この選択で解決'}</button></div></div>`;
   }
@@ -285,7 +283,8 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       <div class="row">${room.hostUid === me ? '<button data-act="rematch">同じメンバーでもう一度</button>' : ''}<button class="ghost" data-act="leave">退出</button></div></div>`;
   }
 
-  const ICO = { coins: '<span class="ic coin" title="コイン">●</span>', power: '<span class="ic" title="戦力">⚔</span>', pop: '<img class="ri" src="people.png" title="支持" alt="支持">', star: '<span class="ic star" title="星">★</span>', card: '<span class="ic" title="戦闘カード">🂠</span>', worker: '<span class="ic" title="ワーカー">⚒</span>', mech: '<span class="ic" title="メック">▣</span>' };
+  const II = (n, t) => `<img class="ri" src="${n}.png" title="${t}" alt="${t}">`;
+  const ICO = { coins: II('coin', 'コイン'), power: II('power', '戦力'), pop: II('pop', '支持'), star: II('star', '星'), card: '<span class="ic" title="戦闘カード">🂠</span>', worker: II('people', 'ワーカー'), mech: '<span class="ic" title="メック">▣</span>' };
   const FACE = (f, n = 26) => `<img class="face" style="width:${n}px;height:${n}px" src="faction_${f}.jpg" alt="">`;
   function comparePanel(ctx) {
     const { st } = ctx;
@@ -309,6 +308,13 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
 
   // 国マット（16:9・国の絵が背景）
   function factionMat(ctx) {
+    const { st, me } = ctx, p = st.players[me];
+    const fc = p.factory ? byId(FACTORY_CARDS, p.factory) : null;
+    const pick = st.turnUid === me && st.turn.phase === 'section' && !st.pending && legalSections(st, me).includes('factory');
+    const fcol = fc ? `<${pick ? 'button' : 'div'} class="acol fac ${p.section === 'factory' ? 'cur' : ''} ${pick ? 'can' : ''}" ${pick ? 'data-act="section" data-v="factory"' : ''} title="${esc(fc.text)}"><img src="${fc.img}" alt=""><small>工場：${esc(fc.text)}</small></${pick ? 'button' : 'div'}>` : '';
+    return `<div class="fwrap">${factionMat0(ctx)}${fcol}</div>`;
+  }
+  function factionMat0(ctx) {
     const { st, me, priv } = ctx, p = st.players[me], f = p.faction, F = BASE_FACTIONS[f];
     const hand = (priv?.hand || []).map((c) => c.value).sort((a, b) => a - b);
     const slots = MECH_SLOTS[f].map((a, i) => {
@@ -333,23 +339,29 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       const cur = p.section === s;
       return `<${pick ? 'button' : 'div'} class="acol ${cur ? 'cur' : ''} ${pick && ok.includes(s) ? 'can' : ''}" ${pick ? `data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}` : ''}>
         <div class="at"><b>${TOP_NAMES[top]}</b><span class="cubes" title="上段の改良キューブ（取ると強化）">${top === 'move' || TOP_CUBES[top] ? Array.from({ length: TOP_CUBES[top] || 0 }, (_, i) => `<i class="cube ${i < (p.up[top] || 0) ? 'gone' : ''}"></i>`).join('') : ''}${p.up[top] ? `<em>強化+${p.up[top]}</em>` : ''}</span><small>${TOP_TEXT[top]}</small>${top === 'produce' ? `<small class="pv">${prodPreview(ctx)}</small>` : ''}</div>
-        <div class="as ${built ? 'built' : ''}">${STRUCT_NAMES[sk]}${built ? '（建設済）' : ''}</div>
+        <div class="as ${built ? 'built' : ''}"><img class="ri" src="${sk}.png" alt="">${STRUCT_NAMES[sk]}${built ? '（建設済・効果発動中）' : '（未建設）'}<small>${STRUCT_TEXT[sk]}</small></div>
         <div class="ab"><b>${BOTTOM_NAMES[bk]}</b><small>${BOTTOM_TEXT[bk]}</small>
           <span class="cost">${RESIMG(BOTTOM_RES[bk])}×${cost}${p.red[bk] ? ` <i>(基本${base}−${p.red[bk]})</i>` : ''}</span>
           <span class="cubes" title="下段のキューブ枠（埋めるとコスト-1）">${Array.from({ length: maxRed }, (_, i) => `<i class="cube slot ${i < p.red[bk] ? 'fill' : ''}"></i>`).join('')}</span><small>報酬 ${ICO.coins}${coin}</small></div></${pick ? 'button' : 'div'}>`;
     }).join('');
-    const fc = p.factory ? byId(FACTORY_CARDS, p.factory) : null;
-    const fcol = fc ? `<${pick ? 'button' : 'div'} class="acol fac ${p.section === 'factory' ? 'cur' : ''} ${pick ? 'can' : ''}" ${pick ? `data-act="section" data-v="factory"` : ''}><img src="${fc.img}" alt=""><small>工場</small></${pick ? 'button' : 'div'}>` : '';
     return `<div class="mat amat" style="background-image:linear-gradient(rgba(10,8,6,.5),rgba(10,8,6,.85)),url(mat_${MAT_IMG[p.mat] || 1}.jpg)">
       <div class="mh"><b>${m.name}マット</b> <span class="mute">改良 ${p.cubes}/6 ・ 徴兵 ${p.recruits.length}/4 ・ 建物 ${p.structures.length}/4${pick ? ' ・ <b class="hint">列をクリックして今回のセクションを選ぶ</b>' : ''}</span></div>
-      <div class="acols">${cols}${fcol}</div></div>`;
+      <div class="acols">${cols}</div></div>`;
   }
 
+  function modalHtml(ctx) {
+    const { st } = ctx;
+    const inner = panelAction(ctx);
+    if (!inner) return '';
+    if (st.over) return `<div class="modal wide">${inner}</div>`;
+    return `<div class="modal">${matWrap(ctx, inner)}</div>`;
+  }
   function objBox(ctx) {
     const { st, me, priv } = ctx, p = st.players[me];
     const list = (priv?.objectives || []).map((id) => byId(OBJECTIVES, id)).filter(Boolean);
     const bt = byId(BONUS_TILES, st.bonusTile);
-    return `<div class="objbox"><b>目的カード</b>${list.length ? list.map((o) => `<div class="ob"><b>${esc(o.name)}</b><span>${esc(o.text)}</span></div>`).join('') : '<div class="ob mute">なし</div>'}${p.stars.includes('objective') ? '<div class="ob">★ 目的の星を獲得済み</div>' : ''}<div class="ob bt"><b>建物ボーナス</b><span>${esc(bt?.text || '')}</span></div></div>`;
+    if (!ui.objOpen) return `<div class="objbox shut"><button class="ghost sm" data-act="objtoggle">目的カード ${list.length}枚 ▼</button></div>`;
+    return `<div class="objbox"><button class="ghost sm fold" data-act="objtoggle">▲ たたむ</button><b>目的カード</b>${list.length ? list.map((o) => `<div class="ob"><b>${esc(o.name)}</b><span>${esc(o.text)}</span></div>`).join('') : '<div class="ob mute">なし</div>'}${p.stars.includes('objective') ? '<div class="ob">★ 目的の星を獲得済み</div>' : ''}<div class="ob bt"><b>建物ボーナス</b><span>${esc(bt?.text || '')}</span></div></div>`;
   }
   function hexPanel(ctx) {
     const { st } = ctx;
@@ -379,9 +391,9 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         <label class="chk"><input type="checkbox" data-bind="sound" ${ui.sound ? 'checked' : ''}> 効果音</label></span></div>
       ${st.over ? '' : stepsBar(st)}
       <div class="game"><div class="boardwrap" id="boardwrap">${boardSVG(ctx)}${objBox(ctx)}</div>
-      <div class="side2">${st.over ? panelAction(ctx) : matWrap(ctx, panelAction(ctx))}
-      ${st.over ? '' : `${factionMat(ctx)}${actionMat(ctx)}`}
-      ${comparePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div></div>`;
+      <div class="mats2">${st.over ? '' : `${factionMat(ctx)}${actionMat(ctx)}`}</div></div>
+      <div class="below">${comparePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>${modalHtml(ctx)}`;
+    root.querySelectorAll('select[data-bind]').forEach((el) => setPath(el.dataset.bind, el.value));
     if (st.log.length !== ui.lastLog) {
       if (ui.lastLog) { const last = st.log[st.log.length - 1]; beep(/星/.test(last.text) ? 880 : /戦闘/.test(last.text) ? 220 : 440); }
       ui.lastLog = st.log.length;
@@ -397,7 +409,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (pd?.type === 'free') {
       const h = pd.queue[0], kinds = h.alt || [h.k];
       if (!kinds.some((k) => canDo(st, me, k, true))) return once(`fs${sig}`, { t: 'free', skip: true });
-      if (h.k === 'produce') return once(`fp${sig}`, { t: 'free', kind: 'produce', hexes: producibleHexes(st, me) });
+      if (h.k === 'produce') { const ph = producibleHexes(st, me); return ph.length <= 2 + (p.up.produce || 0) ? once(`fp${sig}`, { t: 'free', kind: 'produce', hexes: ph }) : null; }
       return null;
     }
     if (pd?.type === 'encounter' && pd.cardId) {
@@ -414,7 +426,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     }
     if (t.phase === 'top') {
       const kind = p.section === 'factory' ? 'factory' : topOf(p.mat, p.section);
-      if (kind === 'produce') return once(`pr${sig}`, canDo(st, me, 'produce') ? { t: 'top', kind: 'produce', hexes: producibleHexes(st, me) } : { t: 'top', kind: 'skip' });
+      if (kind === 'produce') { const ph = producibleHexes(st, me); if (!ph.length) return once(`pr${sig}`, { t: 'top', kind: 'skip' }); return ph.length <= 2 + (p.up.produce || 0) ? once(`pr${sig}`, { t: 'top', kind: 'produce', hexes: ph }) : null; }
       if ((kind === 'bolster' || kind === 'trade') && !canDo(st, me, kind)) return once(`ts${sig}`, { t: 'top', kind: 'skip' });
       if (kind === 'factory') { const c = byId(FACTORY_CARDS, p.factory), { card = 0, anyRes = 0, diff, ...rest } = c.cost; if (p.hand < card || !canPay(st, me, rest)) return once(`fk${sig}`, { t: 'top', kind: 'skip' }); }
     }
@@ -511,6 +523,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   function handleAct(ctx, a, v) {
     const { st, me } = ctx, p = st.players[me];
     switch (a) {
+      case 'objtoggle': ui.objOpen = !ui.objOpen; render(); break;
       case 'resmode': ui.resMode = !ui.resMode; render(); break;
       case 'zoom+': ui.zoom = Math.min(2.4, ui.zoom + 0.2); render(); break;
       case 'zoom-': ui.zoom = Math.max(0.6, ui.zoom - 0.2); render(); break;
@@ -527,7 +540,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         if (!ui.trade.hex) return toast('資源を置く領土を選んでください');
         act({ t: 'top', kind: 'trade', mode: 'res', res: [{ type: ui.trade.r1, hex: ui.trade.hex }, { type: ui.trade.r2, hex: ui.trade.hex }] }); break;
       case 'produce-go': act({ t: 'top', kind: 'produce', hexes: ui.produce }); ui.produce = []; ui.pick = null; break;
-      case 'produce-toggle': ui.produce = ui.produce.includes(v) ? ui.produce.filter((x) => x !== v) : [...ui.produce, v].slice(-2); render(); break;
+      case 'produce-toggle': ui.produce = ui.produce.includes(v) ? ui.produce.filter((x) => x !== v) : [...ui.produce, v].slice(-(2 + (st.players[me].up.produce || 0))); render(); break;
       case 'free-kind': ui.free.kind = v; render(); break;
       case 'free-skip': ui.produce = []; act({ t: 'free', skip: true }); break;
       case 'free-go': {

@@ -7,7 +7,7 @@ import {
   BASE_FACTIONS, BASE_MATS, MAT_NUMBER, MECH_SLOTS, RIVERWALK, BOTTOM_ORDER, BOTTOM_RES,
   RECRUIT_ONETIME, RECRUIT_ONGOING, topOf, structOf,
 } from './data.js';
-import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './placeholder.js';
+import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './cards.js';
 
 export class RuleError extends Error {}
 const fail = (m) => { throw new RuleError(m); };
@@ -218,7 +218,13 @@ export function apply(stIn, uid, action, rng = Math.random) {
   const a = action;
   const phase = t.phase;
 
+  if (st.pending?.type === 'free' && a.t !== 'free') fail('無料効果の処理が残っています');
   switch (a.t) {
+    case 'free': {
+      if (!st.pending || st.pending.type !== 'free') fail('無料効果はありません');
+      doFree(st, uid, a, ctx);
+      break;
+    }
     case 'section': {
       if (phase !== 'section') fail('すでにセクションを選んでいます');
       if (!legalSections(st, uid).includes(a.section)) fail('そのセクションは選べません（前回と別のセクションを選びます）');
@@ -324,37 +330,16 @@ function topAction(st, uid, a, ctx) {
     if (p.structures.some((s) => s.type === 'armory')) p.power = Math.min(POWER_MAX, p.power + 1);
     log(st, uid, `交易: ${a.mode === 'pop' ? '人気度+1' : '資源+2'}`); done(); return;
   }
-  if (kind === 'produce') {
-    const hexes = [...new Set(a.hexes || [])];
-    if (!hexes.length || hexes.length > 2) fail('生産する領土は1〜2か所です');
-    for (const h of hexes) {
-      if (controller(st, h) !== uid) fail('支配している領土で生産します');
-      const mill = p.structures.some((s) => s.type === 'mill' && s.hex === h) ? 1 : 0;
-      const n = myWorkersAt(st, uid, h) + mill;
-      if (!n) fail('ワーカーのいない領土では生産できません');
-      const terr = H(h).terrain;
-      if (terr === 'village') gain(st, uid, { worker: n }, h, ctx);
-      else if (TERRAIN_RES[terr]) st.hexes[h].res[TERRAIN_RES[terr]] = (st.hexes[h].res[TERRAIN_RES[terr]] || 0) + n;
-      else fail('この地形では生産できません');
-    }
-    log(st, uid, `生産（${hexes.length}か所）`); done(); return;
-  }
+  if (kind === 'produce') { doProduce(st, uid, a.hexes, ctx); done(); return; }
   if (kind === 'factory') {
     const card = byId(FACTORY_CARDS, p.factory);
-    pay(st, uid, card.cost);
-    const g = { ...card.gain };
-    const any = g.anyRes; delete g.anyRes;
+    payCost(st, uid, card.cost, a, ctx);
     const hex = a.hex || p.char;
-    if (Object.keys(g).some((k) => RES.includes(k) || k === 'worker') || any) {
-      if (controller(st, hex) !== uid) fail('資源は自分が支配する領土に置きます');
-    }
-    gain(st, uid, g, hex, ctx);
-    if (any) {
-      const types = a.res || [];
-      if (types.length !== any) fail(`資源を${any}つ選んでください`);
-      for (const ty of types) { if (!RES.includes(ty)) fail('不正な資源'); st.hexes[hex].res[ty] = (st.hexes[hex].res[ty] || 0) + 1; }
-    }
-    log(st, uid, `工場「${card.name}」`); done(); return;
+    if (card.gain.worker && controller(st, hex) !== uid) fail('ワーカーは自分が支配する領土に置きます');
+    gain(st, uid, card.gain, hex, ctx);
+    log(st, uid, `工場「${card.name}」`); done();
+    enqueueFree(st, hex, card.free, null);
+    return;
   }
 }
 
@@ -477,24 +462,88 @@ function doCombat(st, uid, a, ctx) {
 }
 
 // ---- 遭遇 ----
+// 費用支払い（戦闘カード・任意資源を含む）。戦闘カードは手札から価値の低い順に捨てる（net.js 側で処理）。
+function payCost(st, uid, cost, a, ctx) {
+  const p = st.players[uid];
+  const { card = 0, anyRes = 0, diff, ...rest } = cost || {};
+  if (p.hand < card) fail('戦闘カードが足りません');
+  const types = (a && a.payRes) || [];
+  if (anyRes) {
+    if (types.length !== anyRes) fail(`支払う資源を${anyRes}個選んでください`);
+    if (diff && new Set(types).size !== types.length) fail('異なる種類の資源を選んでください');
+    for (const ty of types) if (!RES.includes(ty)) fail('不正な資源');
+  }
+  const need = { ...rest }; for (const ty of types) need[ty] = (need[ty] || 0) + 1;
+  pay(st, uid, need);
+  if (card) { p.hand -= card; ctx.cardPays = (ctx.cardPays || 0) + card; }
+}
+
+function enqueueFree(st, hex, items, after) {
+  if (!items.length) return false;
+  st.pending = { type: 'free', queue: items.map((x) => ({ ...x })), hex, after };
+  return true;
+}
+
+function doProduce(st, uid, hexes, ctx) {
+  const p = st.players[uid];
+  hexes = [...new Set(hexes || [])];
+  if (!hexes.length || hexes.length > 2) fail('生産する領土は1〜2か所です');
+  for (const h of hexes) {
+    if (controller(st, h) !== uid) fail('支配している領土で生産します');
+    const mill = p.structures.some((s) => s.type === 'mill' && s.hex === h) ? 1 : 0;
+    const n = myWorkersAt(st, uid, h) + mill;
+    if (!n) fail('ワーカーのいない領土では生産できません');
+    const terr = H(h).terrain;
+    if (terr === 'village') gain(st, uid, { worker: n }, h, ctx);
+    else if (TERRAIN_RES[terr]) st.hexes[h].res[TERRAIN_RES[terr]] = (st.hexes[h].res[TERRAIN_RES[terr]] || 0) + n;
+    else fail('この地形では生産できません');
+  }
+  log(st, uid, `生産（${hexes.length}か所）`);
+}
+
+// 無料効果（遭遇・工場カード由来）。キューの先頭を1つ処理する。skip で放棄できる。
+function doFree(st, uid, a, ctx) {
+  const pd = st.pending, head = pd.queue[0], p = st.players[uid];
+  if (a.skip) { log(st, uid, '無料効果を行わない'); }
+  else {
+    const kind = a.kind;
+    if (head.alt ? !head.alt.includes(kind) : head.k !== kind) fail('その効果は今は選べません');
+    if (['build', 'upgrade', 'deploy', 'enlist'].includes(kind)) runBottom(st, uid, kind, a, ctx, true);
+    else if (kind === 'produce') doProduce(st, uid, a.hexes, ctx);
+    else if (kind === 'anyRes') {
+      const types = a.res || [];
+      if (types.length !== head.n) fail(`資源を${head.n}個選んでください`);
+      const hex = a.hex || pd.hex;
+      if (controller(st, hex) !== uid) fail('資源は自分が支配する領土に置きます');
+      for (const ty of types) { if (!RES.includes(ty)) fail('不正な資源'); st.hexes[hex].res[ty] = (st.hexes[hex].res[ty] || 0) + 1; }
+      log(st, uid, `資源${head.n}個を獲得`);
+    } else fail('不明な効果です');
+  }
+  pd.queue.shift();
+  if (!pd.queue.length) { st.pending = null; if (pd.after === 'settle') settle(st, uid, ctx); }
+}
+
 function doEncounter(st, uid, a, ctx) {
   const p = st.players[uid], pd = st.pending;
   const card = byId(ENCOUNTERS, pd.cardId);
   const picks = a.picks || [];
   const max = p.faction === 'polania' ? 2 : 1;
-  if (picks.length < 1 || picks.length > max) fail(`選択肢は${max}つまでです`);
+  if (picks.length > max) fail(`選択肢は${max}つまでです`);
   if (new Set(picks).size !== picks.length) fail('同じ選択肢は選べません');
+  if (!picks.length && card.options.some((o) => !o.unsupported && canPay(st, uid, o.cost))) fail('選べる選択肢があります');
+  const items = [];
   for (const i of picks) {
     const opt = card.options[i];
     if (!opt) fail('不正な選択肢');
-    const cost = { ...opt.cost };
-    pay(st, uid, cost);
+    if (opt.unsupported) fail('この選択肢はまだ実装されていません');
+    payCost(st, uid, opt.cost, a, ctx);
     gain(st, uid, opt.gain, pd.hex, ctx);
+    items.push(...opt.free);
   }
   st.hexes[pd.hex].enc = false;
-  log(st, uid, `遭遇「${card.name}」を解決`);
+  log(st, uid, picks.length ? `遭遇#${card.no}を解決` : `遭遇#${card.no}：選べる選択肢がなく見送り`);
   st.pending = null;
-  settle(st, uid, ctx);
+  if (!enqueueFree(st, pd.hex, items, 'settle')) settle(st, uid, ctx);
 }
 
 // ---- 下段 ----
@@ -507,10 +556,17 @@ function bottomAction(st, uid, a, ctx) {
     t.afterMove = 'bottom'; startMove(st, uid, 'factoryMove'); log(st, uid, '工場の移動'); return;
   }
   if (a.kind !== kind) fail('このセクションの下段アクションではありません');
+  runBottom(st, uid, kind, a, ctx, false);
+  t.phase = 'end';
+}
+
+// 下段アクションの本体。free=true は遭遇・工場カードによる無料実行（費用・コイン・徴兵常時ボーナスなし）
+function runBottom(st, uid, kind, a, ctx, free) {
+  const p = st.players[uid];
   const m = BASE_MATS[p.mat].lower[kind];
   const cost = Math.max(0, m[0] - p.red[kind]);
   const res = BOTTOM_RES[kind];
-  const needPay = { [res]: cost };
+  const needPay = free ? {} : { [res]: cost };
   const hexOk = (h) => {
     if (!h || !H(h)) fail('領土を選んでください');
     if (controller(st, h) !== uid || !myWorkersAt(st, uid, h)) fail('ワーカーのいる支配領土を選んでください');
@@ -551,14 +607,14 @@ function bottomAction(st, uid, a, ctx) {
     gain(st, uid, { [bonus === 'card' ? 'card' : bonus]: 2 }, p.char, ctx);
     log(st, uid, `徴兵（一時ボーナス: ${bonus}）`);
   }
-  if (!a.noCoins) p.coins += m[2];
+  if (free) return;
+  p.coins += m[2];
   // 常時ボーナス: 行動者 → 左 → 右（2人戦では1回）
   const i = st.order.indexOf(uid), n = st.order.length;
   const chain = [...new Set([uid, st.order[(i + 1) % n], st.order[(i + n - 1) % n]])];
   for (const u of chain) {
     for (const r of st.players[u].recruits) if (r.section === kind) gain(st, u, RECRUIT_ONGOING[kind], st.players[u].char, ctx);
   }
-  t.phase = 'end';
 }
 
 // ---- 目的 ----
@@ -566,13 +622,21 @@ export function objectiveHelpers(st, uid) {
   const p = st.players[uid];
   const cs = controlled(st, uid);
   const rt = resTotals(st, uid);
+  const count = { mountain: 0, farm: 0, tundra: 0, forest: 0, village: 0 };
+  for (const h of cs) if (count[H(h).terrain] !== undefined) count[H(h).terrain]++;
+  const prod = new Set(cs.filter((h) => TERRAIN_RES[H(h).terrain] && myWorkersAt(st, uid, h)).map((h) => H(h).terrain));
+  const at = (h) => ({ char: p.char === h, mech: p.mechs.some((m) => m.hex === h), worker: p.workers.includes(h) });
   return {
-    controlled: cs.length + (cs.includes('0,0') ? 2 : 0),
+    controlled: cs.length + (cs.includes('0,0') ? 2 : 0), cs, rt, count, at,
+    resAt: (h) => Object.values(st.hexes[h].res).reduce((x, v) => x + v, 0),
+    prodTypes: prod.size,
+    charAtHome: H(p.char).terrain === 'home',
+    factoryAdjWorkers: p.workers.filter((w) => H('0,0').nb.includes(w)).length,
+    structNearHome: p.structures.some((s) => H(s.hex).nb.some((n) => H(n).terrain === 'home')),
     workers: p.workers.length, structures: p.structures.length,
-    resTotal: Object.values(rt).reduce((s, v) => s + v, 0),
+    resTotal: Object.values(rt).reduce((x, v) => x + v, 0),
     hasFactory: cs.includes('0,0'), hasLake: cs.some((h) => H(h).terrain === 'lake'),
-    mountains: cs.filter((h) => H(h).terrain === 'mountain').length,
-    farms: cs.filter((h) => H(h).terrain === 'farm').length,
+    mountains: count.mountain, farms: count.farm,
   };
 }
 function doObjective(st, uid, a, ctx) {

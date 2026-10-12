@@ -8,7 +8,7 @@ import { BASE_FACTIONS, BASE_MATS, isLegalCombo } from './engine/data.js';
 import { resolveDraft, validatePrefs, shuffle } from './engine/draft.js';
 import { startBlockers, placeholderNotes } from './engine/setup.js';
 import { createGame } from './engine/game.js';
-import { FACTORY_CARDS, BONUS_TILES } from './engine/placeholder.js';
+import { FACTORY_CARDS, BONUS_TILES } from './engine/cards.js';
 import { makeNet, initialDeck } from './net.js';
 import { createGameUI } from './game-ui.js';
 

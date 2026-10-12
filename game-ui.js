@@ -1,13 +1,13 @@
 // 対戦画面（盤面SVG・操作パネル）。状態の判定は engine/game.js、保存は net.js。
-import { MAP, DIRS } from './engine/legacy-map.js';
+import { MAP, DIRS, PX } from './engine/legacy-map.js';
 import {
   BASE_FACTIONS, BASE_MATS, MECH_SLOTS, ABILITY_NAMES, IMPLEMENTED_ABILITIES, BOTTOM_ORDER, BOTTOM_NAMES, BOTTOM_RES,
   TOP_NAMES, STRUCT_NAMES, RES_NAMES, RECRUIT_ONETIME, topOf, structOf,
 } from './engine/data.js';
 import {
-  controller, controlled, resTotals, unitsAt, moveTargets, legalSections, objectiveHelpers, scoreOf, RuleError,
+  controller, controlled, resTotals, canPay, unitsAt, moveTargets, legalSections, objectiveHelpers, scoreOf, RuleError,
 } from './engine/game.js';
-import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './engine/placeholder.js';
+import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './engine/cards.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const COLORS = ['#d9534f', '#4a90d9', '#e0b43a', '#5cb85c', '#b36bd1'];
@@ -15,14 +15,13 @@ const TERR = {
   mountain: ['#8d8d93', '山'], farm: ['#d6c26a', '農'], tundra: ['#9fb9c8', '油'], forest: ['#4f7d41', '森'],
   village: ['#c98f5e', '村'], lake: ['#3f70b3', '湖'], factory: ['#80608f', '工場'], home: ['#5a5148', '本'],
 };
-const SIZE = 34, SQ3 = Math.sqrt(3);
-const px = (q, r) => [SIZE * SQ3 * (q + r / 2), SIZE * 1.5 * r];
+const SIZE = 34, SQ3 = Math.sqrt(3), K = 70 / 34; // 盤面画像上ではヘクス半径70px
 const corner = (cx, cy, i) => { const a = (Math.PI / 180) * (60 * i - 30); return [cx + SIZE * Math.cos(a), cy + SIZE * Math.sin(a)]; };
 
 export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   const ui = {
     selUnit: null, targets: [], carry: false, pick: null, sel: null, zoom: 1, produce: [],
-    trade: { r1: 'oil', r2: 'wood', hex: null }, bot: { slot: 'upgrade', mech: 0, hex: null, type: 'monument', from: 'upgrade', bonus: 'power' },
+    trade: { r1: 'oil', r2: 'wood', hex: null }, free: { kind: null, hex: null, type: 'monument', mech: 0, slot: 'upgrade', from: 'upgrade', bonus: 'power' }, bot: { slot: 'upgrade', mech: 0, hex: null, type: 'monument', from: 'upgrade', bonus: 'power' },
     fac: { hex: null, r1: 'oil', r2: 'wood' }, combat: { dial: 0, cards: [] }, enc: [], sound: true, lastLog: 0,
   };
   const busy = new Set();
@@ -45,38 +44,28 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   // ---------------------------------------------------------------- 盤面
   function boardSVG(ctx) {
     const { st, me } = ctx;
-    const ids = MAP.ids;
-    const pts = ids.map((id) => px(MAP.hexes[id].q, MAP.hexes[id].r));
-    const minX = Math.min(...pts.map((p) => p[0])) - SIZE * 1.3, maxX = Math.max(...pts.map((p) => p[0])) + SIZE * 1.3;
-    const minY = Math.min(...pts.map((p) => p[1])) - SIZE * 1.3, maxY = Math.max(...pts.map((p) => p[1])) + SIZE * 1.3;
-    const W = maxX - minX, Hh = maxY - minY;
     const colorOf = (uid) => COLORS[st.order.indexOf(uid)] || '#888';
     const tg = new Set(ui.targets.map((t) => t.to));
-    let hexes = '', rivers = '';
-    for (const id of ids) {
-      const h = MAP.hexes[id], [cx, cy] = px(h.q, h.r), hs = st.hexes[id];
-      const [fill, label] = TERR[h.terrain];
-      const poly = [0, 1, 2, 3, 4, 5].map((i) => corner(cx, cy, i).map((v) => v.toFixed(1)).join(',')).join(' ');
+    let hexes = '';
+    for (const id of MAP.ids) {
+      const h = MAP.hexes[id], [X, Y] = h.px || PX(h.q, h.r), hs = st.hexes[id];
+      const cx = 0, cy = 0;
+      const poly = [0, 1, 2, 3, 4, 5].map((i) => corner(0, 0, i).map((v) => v.toFixed(1)).join(',')).join(' ');
       const homeColor = h.home ? colorOf(Object.keys(st.players).find((u) => st.players[u].faction === h.home) || '') : null;
       const sel = ui.sel === id, isT = tg.has(id), pk = ui.pick && ui.pick.ok?.(id);
-      hexes += `<g class="hx" data-hex="${id}">
-        <polygon points="${poly}" fill="${fill}" stroke="${sel ? '#fff' : isT ? '#ffe36b' : pk ? '#7fe0ff' : '#2a241d'}" stroke-width="${sel || isT || pk ? 3.2 : 1.2}" ${h.home ? `style="fill-opacity:.9"` : ''}/>
-        ${h.home ? `<polygon points="${poly}" fill="none" stroke="${homeColor}" stroke-width="4" opacity=".9" transform="translate(${cx} ${cy}) scale(.82) translate(${-cx} ${-cy})"/>` : ''}
-        <text x="${cx}" y="${cy - SIZE * 0.52}" class="tl">${label}${h.tunnel ? '⛰T' : ''}</text>
-        ${hs.enc ? `<circle cx="${cx + SIZE * 0.62}" cy="${cy - SIZE * 0.3}" r="8" fill="#e8c14a" stroke="#222"/><text x="${cx + SIZE * 0.62}" y="${cy - SIZE * 0.3 + 4}" class="eb">!</text>` : ''}
-        ${hs.structure ? `<rect x="${cx - SIZE * 0.78}" y="${cy - SIZE * 0.45}" width="16" height="16" rx="3" fill="${colorOf(hs.structure.owner)}" stroke="#111"/><text x="${cx - SIZE * 0.78 + 8}" y="${cy - SIZE * 0.45 + 12}" class="sb">${STRUCT_NAMES[hs.structure.type][0]}</text>` : ''}
+      const hi = sel || isT || pk;
+      const shape = h.home
+        ? `<circle r="${SIZE * 0.95}" fill="#000" fill-opacity=".01" stroke="${hi ? (sel ? '#fff' : isT ? '#ffe36b' : '#7fe0ff') : homeColor}" stroke-width="${hi ? 3.2 : 3}"/>`
+        : `<polygon points="${poly}" fill="${hi ? (isT ? '#ffe36b' : pk ? '#7fe0ff' : '#fff') : '#000'}" fill-opacity="${hi ? 0.28 : 0.01}" stroke="${hi ? (sel ? '#fff' : isT ? '#ffe36b' : '#7fe0ff') : 'none'}" stroke-width="3.2"/>`;
+      hexes += `<g class="hx" data-hex="${id}" transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">
+        ${shape}
+        ${hs.enc ? `<circle cx="${SIZE * 0.62}" cy="${-SIZE * 0.3}" r="7" fill="#e8c14a" stroke="#222"/><text x="${SIZE * 0.62}" y="${-SIZE * 0.3 + 4}" class="eb">!</text>` : ''}
+        ${hs.structure ? `<rect x="${-SIZE * 0.78}" y="${-SIZE * 0.45}" width="16" height="16" rx="3" fill="${colorOf(hs.structure.owner)}" stroke="#111"/><text x="${-SIZE * 0.78 + 8}" y="${-SIZE * 0.45 + 12}" class="sb">${STRUCT_NAMES[hs.structure.type][0]}</text>` : ''}
         ${resChips(hs, cx, cy)}
         ${unitMarks(st, id, cx, cy, colorOf, me)}
         </g>`;
-      for (const n of h.river) {
-        if (n < id) continue;
-        const nb = MAP.hexes[n], [nx, ny] = px(nb.q, nb.r);
-        const mx = (cx + nx) / 2, my = (cy + ny) / 2, dx = nx - cx, dy = ny - cy, L = Math.hypot(dx, dy);
-        const ex = (-dy / L) * (SIZE * 0.5), ey = (dx / L) * (SIZE * 0.5);
-        rivers += `<line x1="${mx - ex}" y1="${my - ey}" x2="${mx + ex}" y2="${my + ey}" stroke="#58b4ff" stroke-width="5" stroke-linecap="round"/>`;
-      }
     }
-    return `<svg viewBox="${minX} ${minY} ${W} ${Hh}" width="${Math.round(W * ui.zoom * 1.15)}" role="img" aria-label="盤面（仮マップ）">${hexes}${rivers}</svg>`;
+    return `<svg viewBox="0 0 1024 1024" style="width:${Math.round(100 * ui.zoom)}%;max-width:none" role="img" aria-label="盤面"><image href="img/map.jpg" width="1024" height="1024"/>${hexes}</svg>`;
   }
   function resChips(hs, cx, cy) {
     const items = Object.entries(hs.res).filter(([, v]) => v > 0);
@@ -119,15 +108,16 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (st.pending?.type === 'combat') return combatPanel(ctx);
     if (!mine) return `<div class="card"><h2>${nm(ctx, st.turnUid)} の手番</h2><p class="mute">相手の操作を待っています。</p></div>`;
     if (st.pending?.type === 'encounter') return encounterPanel(ctx);
+    if (st.pending?.type === 'free') return freePanel(ctx);
     if (st.pending?.type === 'factory') {
       return `<div class="card"><h2>工場カードを選ぶ（1枚・変更不可）</h2>${st.factoryCandidates.map((id) => {
-        const c = byId(FACTORY_CARDS, id); return `<div class="opt"><b>${esc(c.name)}</b> <span class="mute">${esc(c.text)}</span> <button data-act="factory-pick" data-v="${id}">これにする</button></div>`;
+        const c = byId(FACTORY_CARDS, id); return `<div class="opt facopt"><img src="${c.img}" alt="${esc(c.name)}"><div><b>${esc(c.name)}</b><div class="mute">${esc(c.text)}<br>（絵柄からの暫定解釈）</div><button data-act="factory-pick" data-v="${id}">これにする</button></div></div>`;
       }).join('')}</div>`;
     }
     if (t.phase === 'section') {
       const ok = legalSections(st, me);
       return `<div class="card"><h2>あなたの手番：セクションを選ぶ</h2><p class="mute">前回と別のセクションへアクショントークンを動かします。</p>
-        <div class="row">${[0, 1, 2, 3, ...(p.factory ? ['factory'] : [])].map((s) => `<button data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}>${sectionLabel(p, s)}</button>`).join('')}</div></div>`;
+        <div class="cols">${[0, 1, 2, 3, ...(p.factory ? ['factory'] : [])].map((s) => `<button class="col" data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}>${s === 'factory' ? sectionLabel(p, s) : `<b>${TOP_NAMES[topOf(p.mat, s)]}</b><i>${BASE_MATS[p.mat].columns[s].split('+')[1] ? STRUCT_NAMES[structOf(p.mat, s)] : ''}</i><u>${BOTTOM_NAMES[BOTTOM_ORDER[s]]}</u>`}</button>`).join('')}</div></div>`;
     }
     const kindTop = p.section === 'factory' ? 'factory' : topOf(p.mat, p.section);
     if (t.phase === 'top') return `<div class="card"><h2>上段：${TOP_NAMES[kindTop]}</h2>${topForm(ctx, kindTop)}
@@ -148,14 +138,22 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (kind === 'trade') return `<p class="mute">1コイン支払い</p><div class="row"><button data-act="trade-pop">人気度+1</button></div>
       <div class="row">資源 ${resSel('trade.r1', ui.trade.r1)} ${resSel('trade.r2', ui.trade.r2)} ${hexBtn('置く領土', 'trade.hex', ui.trade.hex)} <button data-act="trade-res">資源+2</button></div>`;
     if (kind === 'produce') return `<p class="mute">自分が支配しワーカーがいる領土を最大2か所（盤面をクリック）</p>
-      <div class="row">${hexBtn('生産する領土', 'produce', ui.produce.join(' / '))}<button data-act="produce-go" ${ui.produce.length ? '' : 'disabled'}>生産する</button><button class="ghost sm" data-act="produce-clear">クリア</button></div>`;
+      <div class="chips">${producible(ctx).map((id) => `<button class="chip ${ui.produce.includes(id) ? 'on' : ''}" data-act="produce-toggle" data-v="${id}">${TERR[MAP.hexes[id].terrain][1]} ${id}</button>`).join('') || '<span class="mute">生産できる領土がありません</span>'}</div>
+      <div class="row">${hexBtn('盤面から選ぶ', 'produce', ui.produce.join(' / '))}<button data-act="produce-go" ${ui.produce.length ? '' : 'disabled'}>生産する</button><button class="ghost sm" data-act="produce-clear">クリア</button></div>`;
     if (kind === 'factory') {
-      const c = byId(FACTORY_CARDS, p.factory);
-      return `<p>${esc(c.name)}：${esc(c.text)}</p><div class="row">${hexBtn('資源を置く領土', 'fac.hex', ui.fac.hex)} ${c.gain.anyRes ? `${resSel('fac.r1', ui.fac.r1)} ${resSel('fac.r2', ui.fac.r2)}` : ''}<button data-act="factory-go">実行</button></div>`;
+      const c = byId(FACTORY_CARDS, p.factory), n = c.cost.anyRes || 0;
+      return `<div class="facopt"><img src="${c.img}" alt=""><div><b>${esc(c.name)}</b><div class="mute">${esc(c.text)}</div>
+        ${n ? `<div class="row">支払う資源 ${Array.from({ length: n }, (_, i) => resSel(`fac.pay${i}`, ui.fac['pay' + i] || ['oil', 'wood'][i] || 'oil')).join(' ')}</div>` : ''}
+        ${c.gain.worker ? `<div class="row">${hexBtn('ワーカーを置く領土', 'fac.hex', ui.fac.hex)}</div>` : ''}
+        <div class="row"><button data-act="factory-go">実行</button></div></div></div>`;
     }
     return '';
   }
 
+  const producible = (ctx) => MAP.ids.filter((id) => okMine(ctx, id) && !['lake', 'home', 'factory'].includes(MAP.hexes[id].terrain));
+  const MAT_IMG = { industrial: 1, engineering: 2, patriotic: 3, mechanical: 4, agricultural: 5, militant: 6, innovative: 7 };
+  const FAC_IMG = { nordic: 'nordic', crimea: 'crimea', saxony: 'saxony', polania: 'polania', rusviet: 'rusviet', togawa: 'togawa' };
+  const matWrap = (ctx, inner) => `<div class="matbg" style="background-image:linear-gradient(rgba(12,10,8,.35),rgba(12,10,8,.7)),url(img/mat_${MAT_IMG[ctx.st.players[ctx.me].mat] || 1}.jpg)">${inner}</div>`;
   function movingPanel(ctx) {
     const { st, me } = ctx, p = st.players[me], mv = st.turn.move;
     const unitName = (u) => (u === 'char' ? 'キャラクター' : u[0] === 'm' ? `メック${+u.slice(1) + 1}` : `ワーカー${+u.slice(1) + 1}`);
@@ -197,10 +195,40 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const { st, me } = ctx, p = st.players[me], pd = st.pending;
     if (!pd.cardId) return `<div class="card"><h2>遭遇</h2><p class="mute">遭遇カードを引いています…</p></div>`;
     const c = byId(ENCOUNTERS, pd.cardId), max = p.faction === 'polania' ? 2 : 1;
-    const txt = (o) => { const f = (x) => Object.entries(x).map(([k, v]) => `${LABEL[k] || k}${v}`).join('・') || 'なし'; return `支払い: ${f(o.cost)} → 獲得: ${f(o.gain)}`; };
-    return `<div class="card"><h2>遭遇「${esc(c.name)}」<span class="tag">仮カード</span></h2><p class="mute">選択肢を${max === 2 ? '最大2つ（ポラニア）' : '1つ'}選びます。</p>
-      ${c.options.map((o, i) => `<label class="opt"><input type="${max === 2 ? 'checkbox' : 'radio'}" name="enc" data-bind="enc" value="${i}" ${ui.enc.includes(i) ? 'checked' : ''}> ${txt(o)}</label>`).join('')}
-      <div class="row"><button data-act="enc-go">この選択で解決</button></div></div>`;
+    const okOpt = (o) => !o.unsupported && canPay(st, me, o.cost);
+    const none = !c.options.some(okOpt);
+    return `<div class="card"><h2>遭遇 #${c.no} ${c.official ? '' : '<span class="tag">仮案</span>'}</h2><p class="mute">選択肢を${max === 2 ? '最大2つ（ポラニア）' : '1つ'}選びます。</p>
+      ${c.options.map((o, i) => `<label class="opt ${okOpt(o) ? '' : 'dim'}"><input type="${max === 2 ? 'checkbox' : 'radio'}" name="enc" data-bind="enc" value="${i}" ${okOpt(o) ? '' : 'disabled'} ${ui.enc.includes(i) ? 'checked' : ''}> ${esc(o.text)}${o.unsupported ? ' <span class="tag">未実装</span>' : ''}</label>`).join('')}
+      <div class="row"><button data-act="enc-go" ${none || ui.enc.length ? '' : 'disabled'}>${none ? '見送る（選べる選択肢なし）' : 'この選択で解決'}</button></div></div>`;
+  }
+  const FREE_NAMES = { build: '建設', upgrade: '改良', deploy: '配備', enlist: '徴兵', produce: '生産', anyRes: '好きな資源' };
+  function freePanel(ctx) {
+    const { st, me } = ctx, p = st.players[me], pd = st.pending, head = pd.queue[0];
+    const kinds = head.alt || [head.k];
+    const f = ui.free, k = kinds.includes(f.kind) ? f.kind : kinds[0];
+    let body = '';
+    if (k === 'build') {
+      const fr = ['monument', 'mill', 'mine', 'armory'].filter((x) => !p.structures.some((s) => s.type === x));
+      body = `建物 <select data-bind="free.type">${fr.map((x) => `<option value="${x}" ${f.type === x ? 'selected' : ''}>${STRUCT_NAMES[x]}</option>`).join('')}</select> ${hexBtn('建設領土', 'free.hex', f.hex)}`;
+    } else if (k === 'deploy') {
+      const free = [0, 1, 2, 3].filter((i) => !p.mechs.some((x) => x.slot === i));
+      body = `メック <select data-bind="free.mech">${free.map((i) => `<option value="${i}" ${+f.mech === i ? 'selected' : ''}>${ABILITY_NAMES[MECH_SLOTS[p.faction][i]]}</option>`).join('')}</select> ${hexBtn('配置領土', 'free.hex', f.hex)}`;
+    } else if (k === 'upgrade') {
+      const opts = BOTTOM_ORDER.filter((s) => p.red[s] < BASE_MATS[p.mat].lower[s][1]);
+      body = `改良先 <select data-bind="free.slot">${opts.map((s) => `<option value="${s}" ${f.slot === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}のコスト-1</option>`).join('')}</select>`;
+    } else if (k === 'enlist') {
+      const fromFree = BOTTOM_ORDER.filter((s) => !p.recruits.some((r) => r.section === s));
+      const bonFree = RECRUIT_ONETIME.filter((x) => !p.recruits.some((r) => r.bonus === x));
+      const BN = { power: 'パワー+2', coins: 'コイン+2', pop: '人気度+2', card: '戦闘カード+2' };
+      body = `取得元 <select data-bind="free.from">${fromFree.map((s) => `<option value="${s}" ${f.from === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}</option>`).join('')}</select> 一時ボーナス <select data-bind="free.bonus">${bonFree.map((x) => `<option value="${x}" ${f.bonus === x ? 'selected' : ''}>${BN[x]}</option>`).join('')}</select>`;
+    } else if (k === 'produce') {
+      body = `<div class="chips">${producible(ctx).map((id) => `<button class="chip ${ui.produce.includes(id) ? 'on' : ''}" data-act="produce-toggle" data-v="${id}">${TERR[MAP.hexes[id].terrain][1]} ${id}</button>`).join('')}</div>`;
+    } else if (k === 'anyRes') {
+      body = `${Array.from({ length: head.n }, (_, i) => resSel(`free.r${i}`, f['r' + i] || 'oil')).join(' ')} ${hexBtn('置く領土', 'free.hex', f.hex)}`;
+    }
+    const sel = kinds.length > 1 ? `<div class="row">${kinds.map((x) => `<button class="sm ${x === k ? '' : 'ghost'}" data-act="free-kind" data-v="${x}">${FREE_NAMES[x]}</button>`).join('')}</div>` : '';
+    return `<div class="card"><h2>無料効果：${kinds.map((x) => FREE_NAMES[x]).join('か')}（残り${pd.queue.length}）</h2><p class="mute">費用なしで実行します。</p>${sel}
+      <div class="row">${body}<button data-act="free-go" data-v="${k}">実行</button><button class="ghost" data-act="free-skip">行わない</button></div></div>`;
   }
   const LABEL = { coins: 'コイン', power: 'パワー', pop: '人気度', card: '戦闘カード', oil: '油', metal: '金属', wood: '木材', food: '食料', worker: 'ワーカー' };
 
@@ -228,7 +256,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const h = objectiveHelpers(st, me);
     return `<p class="mute">目的カード（達成していれば宣言して星を得ます）</p>${list.map((o) => {
       const ok = o.check(p, h) && !(p.stars.includes('objective') && (p.faction !== 'saxony' || p.stars.includes('objective2')));
-      return `<div class="opt"><b>${esc(o.name)}</b> <span class="mute">${esc(o.text)}</span> <button class="sm" data-act="objective" data-v="${o.id}" ${ok ? '' : 'disabled'}>宣言</button></div>`;
+      return `<div class="opt"><b>${esc(o.name)}</b>${o.official ? "" : '<span class="tag">仮案</span>'} <span class="mute">${esc(o.text)}</span> <button class="sm" data-act="objective" data-v="${o.id}" ${ok ? '' : 'disabled'}>宣言</button></div>`;
     }).join('')}`;
   }
 
@@ -256,7 +284,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const { st, me, priv } = ctx, p = st.players[me];
     const hand = (priv?.hand || []).slice().sort((a, b) => a.value - b.value).map((c) => c.value);
     const abil = MECH_SLOTS[p.faction].map((a, i) => `${ABILITY_NAMES[a]}${p.mechs.some((m) => m.slot === i) ? '✔' : ''}${IMPLEMENTED_ABILITIES.includes(a) ? '' : '(未実装)'}`).join(' / ');
-    return `<div class="card"><h2>あなたのマット</h2>
+    return `<div class="card facbg" style="background-image:linear-gradient(rgba(12,10,8,.55),rgba(12,10,8,.82)),url(img/faction_${p.faction}.jpg)"><h2>あなたの国マット：${BASE_FACTIONS[p.faction].name}</h2>
       <div class="stats">戦闘カード: ${hand.join(', ') || 'なし'}</div>
       <div class="stats">改良 ${p.cubes}/6（コスト減: 改良${p.red.upgrade} 配備${p.red.deploy} 建設${p.red.build} 徴兵${p.red.enlist}）／ 徴兵 ${p.recruits.length}/4 ／ マット上ワーカー ${p.matWorkers}</div>
       <div class="stats">メック能力: ${abil}</div>
@@ -287,13 +315,13 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const tile = byId(BONUS_TILES, st.bonusTile);
     const mine = st.turnUid === me && !st.over;
     root.innerHTML = `
-      <div class="banner">★仮データ版★ 盤面・遭遇・目的・工場カード・構造物ボーナスは公式データではありません（${esc(tile?.name || '')}）。メックの一部能力は未実装。</div>
+      <div class="banner">★暫定版★ 盤面は公式画像から読み取り（川は推定）。遭遇・目的の一部は非公式仮案、工場カードは絵柄からの暫定解釈、構造物ボーナスは仮（${esc(tile?.name || '')}）。メックの一部能力は未実装。</div>
       <div class="turnbar ${mine ? 'mine' : ''}">${st.over ? 'ゲーム終了' : `手番：<b>${nm(ctx, st.turnUid)}</b>${mine ? '（あなた）' : ''}`} <span class="mute">ターン${st.turnNo}</span>
         <span class="tools"><button class="ghost sm" data-act="zoom-">−</button><button class="ghost sm" data-act="zoom+">＋</button>
         <label class="chk"><input type="checkbox" data-bind="sound" ${ui.sound ? 'checked' : ''}> 効果音</label></span></div>
       <div class="game">
         <div class="boardwrap" id="boardwrap">${boardSVG(ctx)}</div>
-        <div class="side">${panelAction(ctx)}${playersPanel(ctx)}${minePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>
+        <div class="side">${st.over ? panelAction(ctx) : matWrap(ctx, panelAction(ctx))}${playersPanel(ctx)}${minePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>
       </div>`;
     if (st.log.length !== ui.lastLog) {
       if (ui.lastLog) { const last = st.log[st.log.length - 1]; beep(/星/.test(last.text) ? 880 : /戦闘/.test(last.text) ? 220 : 440); }
@@ -349,6 +377,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       else if (key === 'trade.hex') ui.trade.hex = id;
       else if (key === 'fac.hex') ui.fac.hex = id;
       else if (key === 'bot.hex') ui.bot.hex = id;
+      else if (key === 'free.hex') ui.free.hex = id;
       if (key !== 'produce') ui.pick = null;
       render(); return;
     }
@@ -394,8 +423,21 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         if (!ui.trade.hex) return toast('資源を置く領土を選んでください');
         act({ t: 'top', kind: 'trade', mode: 'res', res: [{ type: ui.trade.r1, hex: ui.trade.hex }, { type: ui.trade.r2, hex: ui.trade.hex }] }); break;
       case 'produce-go': act({ t: 'top', kind: 'produce', hexes: ui.produce }); ui.produce = []; ui.pick = null; break;
+      case 'produce-toggle': ui.produce = ui.produce.includes(v) ? ui.produce.filter((x) => x !== v) : [...ui.produce, v].slice(-2); render(); break;
+      case 'free-kind': ui.free.kind = v; render(); break;
+      case 'free-skip': ui.produce = []; act({ t: 'free', skip: true }); break;
+      case 'free-go': {
+        const f = ui.free, body = { t: 'free', kind: v };
+        if (v === 'build') Object.assign(body, { type: f.type, hex: f.hex });
+        else if (v === 'deploy') Object.assign(body, { slot: +f.mech, hex: f.hex });
+        else if (v === 'upgrade') body.slot = f.slot;
+        else if (v === 'enlist') Object.assign(body, { from: f.from, bonus: f.bonus });
+        else if (v === 'produce') { body.hexes = ui.produce; ui.produce = []; }
+        else if (v === 'anyRes') { const n = st.pending.queue[0].n; body.res = Array.from({ length: n }, (_, i) => f['r' + i] || 'oil'); body.hex = f.hex || p.char; }
+        act(body); ui.free.hex = null; break;
+      }
       case 'produce-clear': ui.produce = []; ui.pick = null; render(); break;
-      case 'factory-go': act({ t: 'top', kind: 'factory', hex: ui.fac.hex || p.char, res: [ui.fac.r1, ui.fac.r2] }); break;
+      case 'factory-go': { const c = byId(FACTORY_CARDS, p.factory); act({ t: 'top', kind: 'factory', hex: ui.fac.hex || p.char, payRes: Array.from({ length: c.cost.anyRes || 0 }, (_, i) => ui.fac['pay' + i] || ['oil', 'wood'][i] || 'oil') }); }; break;
       case 'unit': selectUnit(ctx, v); break;
       case 'endMove': ui.selUnit = null; ui.targets = []; act({ t: 'endMove' }); break;
       case 'bot-skip': act({ t: 'bottom', kind: 'skip' }); break;

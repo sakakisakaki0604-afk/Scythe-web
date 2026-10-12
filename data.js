@@ -52,10 +52,10 @@ export function buildCombatDeck() {
 
 // 未入力の台帳。効果は推測で埋めない。入力後に verified:true と出典を設定する。
 export const LEDGERS = {
-  map:        { label: 'マップ（ヘクス・地形・川・遭遇位置11・本拠地）', expected: 1,  entered: 0, verified: false },
-  encounters: { label: '遭遇カード#1-28（3選択肢）', expected: 28, entered: 0, verified: false },
-  objectives: { label: '目的カード#1-23', expected: 23, entered: 0, verified: false },
-  factory:    { label: '工場カード#1-12', expected: 12, entered: 0, verified: false },
+  map:        { label: '盤面（公式盤面画像から読み取り。川の位置は画像からの推定）', expected: 1, entered: 1, verified: false },
+  encounters: { label: '遭遇カード#1-74（資料v1.2。非公式仮案を含む／効果未実装の選択肢あり）', expected: 74, entered: 74, verified: false },
+  objectives: { label: '目的カード#1-27（資料v1.2。非公式仮案を含む）', expected: 27, entered: 27, verified: false },
+  factory:    { label: '工場カード#1-18（付属画像の絵柄からの暫定解釈）', expected: 18, entered: 18, verified: false },
 };
 
 export const PLAYER_RANGE = { min: 2, max: 5 }; // 基本セット

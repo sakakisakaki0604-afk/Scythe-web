@@ -49,3 +49,18 @@ button.sm{padding:5px 10px;font-size:.85rem}
 .cardchip{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:4px 8px}
 .tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl th,.tbl td{border-bottom:1px solid var(--line);padding:4px;text-align:left}
 @media (max-width:820px){.game{grid-template-columns:1fr}.boardwrap{max-height:60vh}}
+
+.matbg{background-size:cover;background-position:center;border-radius:10px;padding:8px;margin:0 0 10px;border:1px solid var(--line)}
+.matbg .card{background:rgba(18,14,10,.72);margin:0;backdrop-filter:blur(1.5px)}
+.facbg{background-size:cover;background-position:center}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:6px}
+.col{display:flex;flex-direction:column;gap:4px;align-items:center;padding:10px 4px;background:rgba(0,0,0,.45);border:1px solid #c9a96a;color:#fff}
+.col b{font-size:15px}.col i{font-size:11px;font-style:normal;opacity:.8}.col u{text-decoration:none;font-size:13px;border-top:1px solid #c9a96a;padding-top:4px;width:100%;text-align:center}
+.col:disabled{opacity:.35}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.chip{padding:6px 10px;background:rgba(0,0,0,.5);border:1px solid #c9a96a;color:#fff;border-radius:16px}.chip.on{background:#c9a96a;color:#111;font-weight:700}
+.boardwrap{overflow:auto}.boardwrap svg{display:block}
+
+.facopt{display:flex;gap:10px;align-items:flex-start}.facopt img{width:110px;border-radius:6px;flex:none}
+.opt.dim{opacity:.45}.tag{background:#6b5a2e;color:#ffe9a8;font-size:11px;padding:1px 6px;border-radius:8px;margin-left:4px}
+.matbg,.facbg{color:#f3ead8}.matbg h2,.facbg h2{color:#ffe9a8;text-shadow:0 1px 3px #000}.matbg .mute,.facbg .mute,.facbg .stats{color:#e4d8bd}
+.matbg .opt,.matbg label{color:#f3ead8}.matbg select,.matbg input{color:#222}.matbg button.ghost{color:#f3ead8;border-color:#c9a96a;background:rgba(0,0,0,.35)}

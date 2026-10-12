@@ -2,7 +2,7 @@
 import { doc, getDoc, setDoc, runTransaction } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { apply } from './engine/game.js';
 import { commitChoice } from './engine/combat.js';
-import { ENCOUNTERS, OBJECTIVES } from './engine/placeholder.js';
+import { ENCOUNTERS, OBJECTIVES } from './engine/cards.js';
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const sum = (o) => Object.values(o).reduce((s, v) => s + v, 0);
@@ -19,11 +19,17 @@ export function makeNet(db, roomId, uid) {
   /** 操作を適用して保存。違反は RuleError が投げられ、何も書かれない。 */
   async function dispatch(action) {
     return runTransaction(db, async (tx) => {
-      const rs = await tx.get(roomRef); const ds = await tx.get(deckRef);
+      const rs = await tx.get(roomRef); const ds = await tx.get(deckRef); const ps = await tx.get(privRef);
       const room = rs.data(); const deck = ds.data();
       const res = apply(JSON.parse(room.game.json), uid, action);
       tx.update(roomRef, gamePatch(room, res.state));
       const upd = {};
+      if (res.cardPays) { // 戦闘カードを費用に使った: 価値の低い順に捨てる
+        const hand = [...(ps.data()?.hand || [])].sort((x, y) => x.value - y.value);
+        const gone = hand.splice(0, res.cardPays);
+        for (const c of gone) res.discards[c.value] = (res.discards[c.value] || 0) + 1;
+        tx.set(privRef, { hand }, { merge: true });
+      }
       for (const [u, n] of Object.entries(res.grants)) upd[`grants.${u}`] = (deck.grants?.[u] || 0) + n;
       for (const [v, n] of Object.entries(res.discards)) upd[`discards.${v}`] = (deck.discards?.[v] || 0) + n;
       if (Object.keys(upd).length) tx.update(deckRef, upd);

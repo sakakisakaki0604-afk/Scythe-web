@@ -67,4 +67,4 @@ const SPEC = [
   FC({ card: 1 }, { power: 1 }, [{ k: 'upgrade' }], '戦闘カード1枚 → 改良（無料）＋パワー+1'),
   FC({ anyRes: 2, diff: true }, {}, alt('enlist', 'upgrade'), '異なる資源2個 → 徴兵か改良（無料）'),
 ];
-export const FACTORY_CARDS = SPEC.map((c, i) => ({ id: `fac_${String(i + 1).padStart(2, '0')}`, no: i + 1, name: `工場カード${i + 1}`, img: `img/factory_${String(i + 1).padStart(2, '0')}.jpg`, ...c }));
+export const FACTORY_CARDS = SPEC.map((c, i) => ({ id: `fac_${String(i + 1).padStart(2, '0')}`, no: i + 1, name: `工場カード${i + 1}`, img: `factory_${String(i + 1).padStart(2, '0')}.jpg`, ...c }));

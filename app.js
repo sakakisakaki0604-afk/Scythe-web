@@ -4,11 +4,11 @@ import {
   getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp, deleteField,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
-import { BASE_FACTIONS, BASE_MATS, isLegalCombo } from './engine/data.js';
-import { resolveDraft, validatePrefs, shuffle } from './engine/draft.js';
-import { startBlockers, placeholderNotes } from './engine/setup.js';
-import { createGame } from './engine/game.js';
-import { FACTORY_CARDS, BONUS_TILES } from './engine/cards.js';
+import { BASE_FACTIONS, BASE_MATS, isLegalCombo } from './data.js';
+import { resolveDraft, validatePrefs, shuffle } from './draft.js';
+import { startBlockers, placeholderNotes } from './setup.js';
+import { createGame } from './game.js';
+import { FACTORY_CARDS, BONUS_TILES } from './cards.js';
 import { makeNet, initialDeck } from './net.js';
 import { createGameUI } from './game-ui.js';
 

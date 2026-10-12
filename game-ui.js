@@ -1,13 +1,13 @@
 // 対戦画面（盤面SVG・操作パネル）。状態の判定は engine/game.js、保存は net.js。
-import { MAP, DIRS, PX } from './engine/legacy-map.js';
+import { MAP, DIRS, PX } from './legacy-map.js';
 import {
   BASE_FACTIONS, BASE_MATS, MECH_SLOTS, ABILITY_NAMES, IMPLEMENTED_ABILITIES, BOTTOM_ORDER, BOTTOM_NAMES, BOTTOM_RES,
   TOP_NAMES, STRUCT_NAMES, RES_NAMES, RECRUIT_ONETIME, topOf, structOf,
-} from './engine/data.js';
+} from './data.js';
 import {
   controller, controlled, resTotals, canPay, unitsAt, moveTargets, legalSections, objectiveHelpers, scoreOf, RuleError,
-} from './engine/game.js';
-import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './engine/cards.js';
+} from './game.js';
+import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './cards.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const COLORS = ['#d9534f', '#4a90d9', '#e0b43a', '#5cb85c', '#b36bd1'];
@@ -65,7 +65,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         ${unitMarks(st, id, cx, cy, colorOf, me)}
         </g>`;
     }
-    return `<svg viewBox="0 0 1024 1024" style="width:${Math.round(100 * ui.zoom)}%;max-width:none" role="img" aria-label="盤面"><image href="img/map.jpg" width="1024" height="1024"/>${hexes}</svg>`;
+    return `<svg viewBox="0 0 1024 1024" style="width:${Math.round(100 * ui.zoom)}%;max-width:none" role="img" aria-label="盤面"><image href="map.jpg" width="1024" height="1024"/>${hexes}</svg>`;
   }
   function resChips(hs, cx, cy) {
     const items = Object.entries(hs.res).filter(([, v]) => v > 0);
@@ -153,7 +153,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   const producible = (ctx) => MAP.ids.filter((id) => okMine(ctx, id) && !['lake', 'home', 'factory'].includes(MAP.hexes[id].terrain));
   const MAT_IMG = { industrial: 1, engineering: 2, patriotic: 3, mechanical: 4, agricultural: 5, militant: 6, innovative: 7 };
   const FAC_IMG = { nordic: 'nordic', crimea: 'crimea', saxony: 'saxony', polania: 'polania', rusviet: 'rusviet', togawa: 'togawa' };
-  const matWrap = (ctx, inner) => `<div class="matbg" style="background-image:linear-gradient(rgba(12,10,8,.35),rgba(12,10,8,.7)),url(img/mat_${MAT_IMG[ctx.st.players[ctx.me].mat] || 1}.jpg)">${inner}</div>`;
+  const matWrap = (ctx, inner) => `<div class="matbg" style="background-image:linear-gradient(rgba(12,10,8,.35),rgba(12,10,8,.7)),url(mat_${MAT_IMG[ctx.st.players[ctx.me].mat] || 1}.jpg)">${inner}</div>`;
   function movingPanel(ctx) {
     const { st, me } = ctx, p = st.players[me], mv = st.turn.move;
     const unitName = (u) => (u === 'char' ? 'キャラクター' : u[0] === 'm' ? `メック${+u.slice(1) + 1}` : `ワーカー${+u.slice(1) + 1}`);
@@ -284,7 +284,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const { st, me, priv } = ctx, p = st.players[me];
     const hand = (priv?.hand || []).slice().sort((a, b) => a.value - b.value).map((c) => c.value);
     const abil = MECH_SLOTS[p.faction].map((a, i) => `${ABILITY_NAMES[a]}${p.mechs.some((m) => m.slot === i) ? '✔' : ''}${IMPLEMENTED_ABILITIES.includes(a) ? '' : '(未実装)'}`).join(' / ');
-    return `<div class="card facbg" style="background-image:linear-gradient(rgba(12,10,8,.55),rgba(12,10,8,.82)),url(img/faction_${p.faction}.jpg)"><h2>あなたの国マット：${BASE_FACTIONS[p.faction].name}</h2>
+    return `<div class="card facbg" style="background-image:linear-gradient(rgba(12,10,8,.55),rgba(12,10,8,.82)),url(faction_${p.faction}.jpg)"><h2>あなたの国マット：${BASE_FACTIONS[p.faction].name}</h2>
       <div class="stats">戦闘カード: ${hand.join(', ') || 'なし'}</div>
       <div class="stats">改良 ${p.cubes}/6（コスト減: 改良${p.red.upgrade} 配備${p.red.deploy} 建設${p.red.build} 徴兵${p.red.enlist}）／ 徴兵 ${p.recruits.length}/4 ／ マット上ワーカー ${p.matWorkers}</div>
       <div class="stats">メック能力: ${abil}</div>

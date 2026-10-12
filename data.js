@@ -58,7 +58,7 @@ export const LEDGERS = {
   factory:    { label: '工場カード#1-18（付属画像の絵柄からの暫定解釈）', expected: 18, entered: 18, verified: false },
 };
 
-export const PLAYER_RANGE = { min: 2, max: 5 }; // 基本セット
+export const PLAYER_RANGE = { min: 1, max: 5 }; // 基本セット
 export const factoryCandidateCount = (players) => players + 1;
 
 // ---- ゲーム進行用の追加定義 ----

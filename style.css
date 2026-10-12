@@ -64,3 +64,8 @@ button.sm{padding:5px 10px;font-size:.85rem}
 .opt.dim{opacity:.45}.tag{background:#6b5a2e;color:#ffe9a8;font-size:11px;padding:1px 6px;border-radius:8px;margin-left:4px}
 .matbg,.facbg{color:#f3ead8}.matbg h2,.facbg h2{color:#ffe9a8;text-shadow:0 1px 3px #000}.matbg .mute,.facbg .mute,.facbg .stats{color:#e4d8bd}
 .matbg .opt,.matbg label{color:#f3ead8}.matbg select,.matbg input{color:#222}.matbg button.ghost{color:#f3ead8;border-color:#c9a96a;background:rgba(0,0,0,.35)}
+
+.ver{background:#2f6b3a;color:#fff;font-size:12px;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.steps span{padding:6px 12px;border-radius:16px;background:#e6dcc6;color:#7a6a4a;font-size:14px}
+.steps .now{background:#b8862b;color:#fff;font-weight:700;box-shadow:0 0 0 2px #ffe9a8}.steps .done{background:#cfd8b8;color:#4b5a2f}.steps .pend{background:#8b2f2f;color:#fff;font-weight:700}
+.matbg button:not(.ghost):not(.col):not(.chip){font-size:15px;padding:9px 14px}

@@ -92,6 +92,13 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     return out;
   }
 
+  function stepsBar(st) {
+    const ph = st.turn.phase, pd = st.pending;
+    const cur = pd?.type === 'combat' ? 1 : pd ? 2 : { section: 0, top: 1, moving: 1, bottom: 2, end: 3 }[ph] ?? 0;
+    const S = ['① セクション選択', '② 上段アクション', '③ 下段アクション', '④ ターン終了'];
+    return `<div class="steps">${S.map((x, i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}">${x}</span>`).join('')}${pd ? `<span class="pend">${{ combat: '戦闘中', encounter: '遭遇', factory: '工場カード選択', free: '無料効果' }[pd.type] || ''}</span>` : ''}</div>`;
+  }
+
   // ---------------------------------------------------------------- パネル
   const nm = (ctx, uid) => esc(ctx.names(uid));
   const sectionLabel = (p, s) => {
@@ -319,6 +326,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       <div class="turnbar ${mine ? 'mine' : ''}">${st.over ? 'ゲーム終了' : `手番：<b>${nm(ctx, st.turnUid)}</b>${mine ? '（あなた）' : ''}`} <span class="mute">ターン${st.turnNo}</span>
         <span class="tools"><button class="ghost sm" data-act="zoom-">−</button><button class="ghost sm" data-act="zoom+">＋</button>
         <label class="chk"><input type="checkbox" data-bind="sound" ${ui.sound ? 'checked' : ''}> 効果音</label></span></div>
+      ${st.over ? '' : stepsBar(st)}
       <div class="game">
         <div class="boardwrap" id="boardwrap">${boardSVG(ctx)}</div>
         <div class="side">${st.over ? panelAction(ctx) : matWrap(ctx, panelAction(ctx))}${playersPanel(ctx)}${minePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>

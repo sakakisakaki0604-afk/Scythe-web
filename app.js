@@ -160,7 +160,7 @@ function renderLobby() {
   $app.innerHTML = `
   <div class="card"><h2>ルーム <span class="code">${esc(roomId)}</span></h2>${members()}
     <div class="row">${isHost()
-      ? `<button id="go" ${n < 2 ? 'disabled' : ''}>勢力ドラフトを始める</button>${n < 2 ? '<span class="mute">2人以上で開始できます</span>' : ''}`
+      ? `<button id="go" ${n < 1 ? 'disabled' : ''}>勢力ドラフトを始める</button><span class="mute">1人でも開始できます（テスト用）</span>`
       : '<span class="mute">ホストの開始を待っています…</span>'}
     ${n < 2 ? `<p class="mute">1人しかいません。同じブラウザの別タブは同じプレイヤー扱いになるため、1人で試すときは下のボタンで「別プレイヤー用タブ」を開いてください。</p>
       <button class="ghost" id="ot">別プレイヤー用タブを開く（テスト用）</button>` : ''}

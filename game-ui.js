@@ -27,14 +27,35 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   const busy = new Set();
   let audio = null;
 
-  const beep = (f = 440, d = 0.08) => {
-    if (!ui.sound) return;
-    try {
-      audio ||= new (window.AudioContext || window.webkitAudioContext)();
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.frequency.value = f; g.gain.value = 0.04; o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + d);
-    } catch { /* 無視 */ }
+  // ---- 効果音（WebAudio合成。ドーパミン多めのアルペジオ・キラキラ・衝撃音） ----
+  const tone = (f, at, dur, type = 'triangle', vol = 0.09, slide = 0) => {
+    const o = audio.createOscillator(), g = audio.createGain(), t0 = audio.currentTime + at;
+    o.type = type; o.frequency.setValueAtTime(f, t0); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audio.destination); o.start(t0); o.stop(t0 + dur + 0.05);
   };
+  const noise = (at, dur, vol = 0.12) => {
+    const n = audio.sampleRate * dur, buf = audio.createBuffer(1, n, audio.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = audio.createBufferSource(), g = audio.createGain(); src.buffer = buf; g.gain.value = vol; src.connect(g); g.connect(audio.destination); src.start(audio.currentTime + at);
+  };
+  const N = { C5: 523, E5: 659, G5: 784, C6: 1047, E6: 1319, G6: 1568, C7: 2093 };
+  const SFX = {
+    click: () => tone(1200, 0, 0.05, 'square', 0.04),
+    move: () => { tone(380, 0, 0.09, 'triangle', 0.1, 1.8); tone(760, 0.07, 0.08, 'sine', 0.06); },
+    coin: () => [N.E6, N.G6, N.C7].forEach((f, i) => tone(f, i * 0.055, 0.14, 'sine', 0.09)),
+    build: () => { tone(160, 0, 0.12, 'square', 0.08, 0.6); noise(0, 0.08, 0.1); [N.C5, N.G5, N.C6].forEach((f, i) => tone(f, 0.1 + i * 0.07, 0.2, 'triangle', 0.09)); },
+    produce: () => [N.C5, N.E5, N.G5, N.C6, N.E6].forEach((f, i) => tone(f, i * 0.05, 0.16, 'triangle', 0.08)),
+    combat: () => { noise(0, 0.25, 0.22); tone(110, 0, 0.35, 'sawtooth', 0.14, 0.4); tone(70, 0.05, 0.4, 'square', 0.1, 0.5); },
+    star: () => { [N.C5, N.E5, N.G5, N.C6, N.E6, N.G6, N.C7].forEach((f, i) => tone(f, i * 0.07, 0.35, 'triangle', 0.1)); tone(N.C6, 0.5, 0.7, 'sine', 0.1); },
+    turn: () => { tone(N.G5, 0, 0.18, 'sine', 0.1); tone(N.C6, 0.12, 0.3, 'sine', 0.11); tone(N.E6, 0.26, 0.4, 'sine', 0.1); },
+    end: () => { tone(N.C6, 0, 0.1, 'triangle', 0.08); tone(N.G5, 0.08, 0.16, 'triangle', 0.08); },
+  };
+  const sfx = (k) => {
+    if (!ui.sound) return;
+    try { audio ||= new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); SFX[k]?.(); } catch { /* 無視 */ }
+  };
+  const beep = () => sfx('move');
   const guard = async (fn) => {
     try { await fn(); }
     catch (e) { if (e instanceof RuleError) toast(e.message); else { toast('通信に失敗しました。もう一度試してください'); console.error(e); } }
@@ -55,14 +76,14 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       const sel = ui.sel === id, isT = tg.has(id), pk = ui.pick && ui.pick.ok?.(id);
       const hi = sel || isT || pk, hc = sel ? '#ffffff' : isT ? '#00f0ff' : '#7dff7d';
       const shape = h.home
-        ? `<circle r="${SIZE * 0.95}" fill="#000" fill-opacity=".01" stroke="${hi ? hc : homeColor}" stroke-width="${hi ? 3.4 : 3}"/>`
+        ? `<circle r="${SIZE * 0.95}" fill="#000" fill-opacity=".01" stroke="${hi ? hc : 'none'}" stroke-width="3.4"/>`
         : `<polygon points="${poly}" fill="${hi ? hc : '#000'}" fill-opacity="${hi ? 0.25 : 0.01}" stroke="${hi ? hc : 'none'}" stroke-width="3.4" stroke-linejoin="round"/>`;
       const rIcon = ui.resMode && RES_OF[h.terrain] ? `<image href="${RES_OF[h.terrain]}.png" x="${-SIZE * 0.55}" y="${-SIZE * 0.55}" width="${SIZE * 1.1}" height="${SIZE * 1.1}" opacity=".95" pointer-events="none"/>`
         : ui.resMode && h.terrain === 'village' ? `<image href="people.png" x="${-SIZE * 0.55}" y="${-SIZE * 0.55}" width="${SIZE * 1.1}" height="${SIZE * 1.1}" opacity=".95" pointer-events="none"/>` : '';
       const dim = ui.resMode && !h.home ? `<polygon points="${poly}" fill="#000" fill-opacity=".5" pointer-events="none"/>` : '';
       hexes += `<g class="hx" data-hex="${id}" transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">
         ${dim}${shape}${rIcon}${isT ? `<text y="6" text-anchor="middle" class="stp">${ui.targets.find((t) => t.to === id)?.steps ?? ''}</text>` : ''}
-        ${hs.enc ? `<circle cx="${SIZE * 0.62}" cy="${-SIZE * 0.3}" r="7" fill="#e8c14a" stroke="#222"><title>遭遇トークン</title></circle><text x="${SIZE * 0.62}" y="${-SIZE * 0.3 + 4}" class="eb">!</text>` : ''}
+        ${hs.enc ? `<circle cx="${SIZE * 0.7}" cy="${-SIZE * 0.8}" r="8" fill="#e8c14a" stroke="#222"><title>遭遇トークン</title></circle><text x="${SIZE * 0.7}" y="${-SIZE * 0.8 + 4}" class="eb">!</text>` : ''}
         ${structMark(st, hs, colorOf, ctx)}
         ${resChips(hs, 0, 0)}
         </g>`;
@@ -73,18 +94,18 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   function structMark(st, hs, colorOf, ctx) {
     if (!hs.structure) return '';
     const c = colorOf(hs.structure.owner), n = STRUCT_NAMES[hs.structure.type];
-    return `<g class="struct"><title>${n}（${esc(ctx.names(hs.structure.owner))}）</title><circle cx="${-SIZE * 0.62}" cy="${-SIZE * 0.52}" r="14" fill="${c}" stroke="#fff" stroke-width="2.5"/><image href="${hs.structure.type}.png" x="${-SIZE * 0.62 - 10}" y="${-SIZE * 0.52 - 10}" width="20" height="20"/></g>`;
+    return `<g class="struct"><title>${n}（${esc(ctx.names(hs.structure.owner))}）</title><circle cx="${-SIZE * 0.7}" cy="${-SIZE * 0.8}" r="12" fill="${c}" stroke="#fff" stroke-width="2.5"/><image href="${hs.structure.type}.png" x="${-SIZE * 0.7 - 9}" y="${-SIZE * 0.8 - 9}" width="18" height="18"/></g>`;
   }
   function resChips(hs, cx, cy) {
-    const items = Object.entries(hs.res).filter(([, v]) => v > 0);
-    return items.map(([k, v], i) => `<g transform="translate(${cx - SIZE * 0.7 + i * 19} ${cy + SIZE * 0.55})"><image href="${k}.png" width="17" height="17" x="-8" y="-9"/><text x="0" y="14" class="rc" text-anchor="middle">${v}</text></g>`).join('');
+    const items = Object.entries(hs.res).filter(([, v]) => v > 0), w = 27, x0 = cx - (items.length * w) / 2 + 2;
+    return items.map(([k, v], i) => `<g transform="translate(${x0 + i * w} ${cy + SIZE * 0.78})"><rect x="-2" y="-9" width="${w - 2}" height="18" rx="9" fill="#000" fill-opacity=".62"/><image href="${k}.png" width="15" height="15" x="0" y="-7.5"/><text x="16" y="4" class="rc">${v}</text></g>`).join('');
   }
   function unitMarks(st, id, cx, cy, colorOf, me) {
     const us = unitsAt(st, id); let i = 0, out = '';
     for (const [uid, u] of Object.entries(us)) {
       const c = colorOf(uid), mine = uid === me;
       const mk = (shape, unit, label, name) => {
-        const x = cx - 20 + (i % 3) * 20, y = cy - 6 + Math.floor(i / 3) * 20; i++;
+        const x = cx - 21 + (i % 3) * 21, y = cy - 8 + Math.floor(i / 3) * 21; i++;
         const on = mine && ui.selUnit === unit;
         const data = mine ? `data-unit="${unit}" class="unit"` : '';
         const ring = on ? `<circle cx="${x}" cy="${y}" r="15" fill="none" stroke="#00f0ff" stroke-width="3.5"/><circle cx="${x}" cy="${y}" r="18" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="3 3"/>` : '';
@@ -134,7 +155,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (t.phase === 'section') return '';
     const kindTop = p.section === 'factory' ? 'factory' : topOf(p.mat, p.section);
     if (t.phase === 'top') return `<div class="card"><h2>上段：${TOP_NAMES[kindTop]}</h2>${topForm(ctx, kindTop)}
-      <div class="row"><button class="ghost" data-act="top-skip">上段を行わない</button></div></div>`;
+      <div class="row"><button class="ghost" data-act="top-skip">上段を行わない</button><button class="ghost" data-act="cancel-sec">↩ セクション選択に戻る</button></div></div>`;
     if (t.phase === 'moving') return movingPanel(ctx);
     if (t.phase === 'bottom') {
       const kb = p.section === 'factory' ? 'factoryMove' : BOTTOM_ORDER[p.section];
@@ -395,7 +416,11 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       <div class="below">${comparePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>${modalHtml(ctx)}`;
     root.querySelectorAll('select[data-bind]').forEach((el) => setPath(el.dataset.bind, el.value));
     if (st.log.length !== ui.lastLog) {
-      if (ui.lastLog) { const last = st.log[st.log.length - 1]; beep(/星/.test(last.text) ? 880 : /戦闘/.test(last.text) ? 220 : 440); }
+      if (ui.lastLog) {
+        const last = st.log[st.log.length - 1], x = last.text;
+        sfx(/星/.test(x) ? 'star' : /戦闘|退却/.test(x) ? 'combat' : /建設|配備|改良|徴兵|工場/.test(x) ? 'build' : /生産/.test(x) ? 'produce' : /コイン|資源|獲得|遭遇/.test(x) ? 'coin' : /移動/.test(x) ? 'move' : /終了/.test(x) ? 'end' : 'click');
+      }
+      if (ui.lastTurn !== st.turnUid) { if (ui.lastTurn && st.turnUid === me) sfx('turn'); ui.lastTurn = st.turnUid; }
       ui.lastLog = st.log.length;
     }
   }
@@ -417,6 +442,15 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       return c.options.some((o) => !o.unsupported && canPay(st, me, o.cost)) ? null : once(`en${sig}`, { t: 'encounter', picks: [] });
     }
     if (pd) return null;
+    if (t.phase === 'section') {
+      const anyUnit = (u) => moveTargets(st, me, u).length > 0;
+      const can = legalSections(st, me).some((sec) => {
+        const kind = sec === 'factory' ? 'factory' : topOf(p.mat, sec);
+        const topOk = kind === 'move' ? ['char', ...p.mechs.map((_, i) => `m${i}`), ...p.workers.map((_, i) => `w${i}`)].some(anyUnit) : kind === 'factory' ? true : canDo(st, me, kind);
+        return topOk || (sec !== 'factory' && canDo(st, me, BOTTOM_ORDER[sec]));
+      });
+      if (!can) return once(`ae${sig}`, { t: 'endTurn' });
+    }
     if (t.phase !== 'moving') {
       const free = !p.stars.includes('objective') || (p.faction === 'saxony' && !p.stars.includes('objective2'));
       if (free && p.objs > 0) for (const id of priv?.objectives || []) {
@@ -477,7 +511,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const { st, me } = ctx, mv = st.turn.move;
     if (!mv) return;
     if (mv.kind === 'move' && mv.moved.includes(unit)) return toast('そのユニットはすでに動かしました');
-    ui.selUnit = unit;
+    ui.selUnit = unit; ui.pick = null;
     const allow = mv.kind === 'factoryMove' ? (mv.idx === 0 && unit[0] !== 'w' && st.players[me].mechs.some((m) => MECH_SLOTS[st.players[me].faction][m.slot] === 'speed') ? 2 : 1) : undefined;
     ui.targets = moveTargets(st, me, unit, allow);
     render();
@@ -485,6 +519,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
 
   function onHex(ctx, id) {
     const { st, me } = ctx;
+    if (ui.pick && st.turn.phase === 'moving' && !st.pending) ui.pick = null;
     if (ui.pick) {
       const { key } = ui.pick;
       if (!ui.pick.ok(id)) { toast('そこは選べません'); return; }
@@ -502,7 +537,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       if (ui.carry) { const from = st.turn.move && (unit === 'char' ? st.players[me].char : unit[0] === 'm' ? st.players[me].mechs[+unit.slice(1)].hex : st.players[me].workers[+unit.slice(1)]); carry = { ...st.hexes[from].res }; }
       ui.selUnit = null; ui.targets = [];
       act({ t: 'move', unit, to: id, carry });
-      beep(520); return;
+      return;
     }
     ui.sel = id; render();
   }
@@ -515,7 +550,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const unitEl = e.target.closest('[data-unit]');
     if (unitEl && st.turn.phase === 'moving' && st.turnUid === me && !st.pending) { selectUnit(ctx, unitEl.dataset.unit); return; }
     const btn = e.target.closest('[data-act]');
-    if (btn) { handleAct(ctx, btn.dataset.act, btn.dataset.v); return; }
+    if (btn) { if (!/section|endTurn/.test(btn.dataset.act)) sfx('click'); handleAct(ctx, btn.dataset.act, btn.dataset.v); return; }
     const hx = e.target.closest('[data-hex]');
     if (hx) onHex(ctx, hx.dataset.hex);
   }
@@ -530,6 +565,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       case 'leave': onLeave(); break;
       case 'rematch': onRematch(); break;
       case 'section': act({ t: 'section', section: v === 'factory' ? 'factory' : +v }); break;
+      case 'cancel-sec': act({ t: 'cancelSection' }); break;
       case 'top-skip': act({ t: 'top', kind: 'skip' }); break;
       case 'move-units': act({ t: 'top', kind: 'move', mode: 'units' }); break;
       case 'move-coin': act({ t: 'top', kind: 'move', mode: 'coin' }); break;

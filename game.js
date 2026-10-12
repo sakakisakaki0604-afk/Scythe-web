@@ -233,6 +233,12 @@ export function apply(stIn, uid, action, rng = Math.random) {
       log(st, uid, `セクション${a.section === 'factory' ? '（工場）' : a.section + 1}を選択`);
       break;
     }
+    case 'cancelSection': {
+      if (phase !== 'top' || t.topTaken) fail('上段アクションを行う前だけ取り消せます');
+      p.section = p.last; t.phase = 'section';
+      log(st, uid, 'セクション選択を取り消し');
+      break;
+    }
     case 'top': {
       if (phase !== 'top') fail('今は上段アクションを選べません');
       topAction(st, uid, a, ctx);

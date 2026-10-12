@@ -8,7 +8,7 @@ main{max-width:760px;margin:0 auto;padding:16px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin:0 0 16px}
 h2{margin:0 0 8px;font-size:1.1rem;color:var(--acc)}
 input,select,button{font:inherit;color:inherit}
-input,select{background:transparent;border:1px solid var(--line);border-radius:6px;padding:8px 10px;max-width:100%}
+input,select{background:#fffbea;color:#1a1208;border:1px solid var(--line);border-radius:6px;padding:8px 10px;max-width:100%}
 button{background:var(--acc);color:#1b1713;border:0;border-radius:6px;padding:9px 16px;cursor:pointer;font-weight:700}
 button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 button:disabled{opacity:.45;cursor:not-allowed}
@@ -129,3 +129,19 @@ main:has(.game){max-width:none;padding:6px 10px}
 .stp{font:700 22px sans-serif;fill:#001a22;paint-order:stroke;stroke:#fff;stroke-width:4px;pointer-events:none}
 @media (max-width:900px){.game{grid-template-columns:1fr}.boardwrap{width:100%;height:auto;aspect-ratio:1}.mats2{height:auto}.mats2 .mat,.mats2 .fwrap{min-height:320px}.modal{width:94vw}}
 .modal{top:200px;bottom:auto;max-height:calc(var(--S) * .5)}
+
+/* ---- v9 ---- */
+select,option{background:#fffbea;color:#1a1208}select{border:2px solid #d9a93a;font-weight:600}
+input[type=checkbox],input[type=radio]{accent-color:#19d3ff;width:18px;height:18px;vertical-align:-3px}
+.matbg select,.matbg input:not([type=checkbox]):not([type=radio]){color:#1a1208;background:#fffbea}
+main:has(.game){padding:4px 6px}
+:root{--S:min(calc(100vh - 108px),52vw)}
+.game{grid-template-columns:var(--S) minmax(0,1fr);gap:6px}
+.mats2 .mat{font-size:16px;padding:8px 12px}.mats2 .mat .mh b{font-size:20px}
+.mats2 .slot{font-size:14px;padding:5px 8px}.mats2 .slot b{font-size:15px}
+.acol small{font-size:13px}.acol b{font-size:17px}.acol .cost{font-size:18px}.acol .as{font-size:14px}.acol .as small{font-size:12px}
+.chips2 span{font-size:15px;padding:2px 9px}.mats2 .ri{width:22px;height:22px}
+.rc{font:700 13px sans-serif}
+.modal{top:calc(70px + var(--S) * .26);bottom:auto;right:auto;left:calc(6px + var(--S) + 6px + (100vw - var(--S) - 18px) / 2);transform:translateX(-50%);width:min(760px,calc(100vw - var(--S) - 40px));max-height:calc(var(--S) * .7);font-size:16px}
+.modal button,.modal select{font-size:16px}
+@media (max-width:900px){.modal{left:50%;top:auto;bottom:10px;width:94vw}}

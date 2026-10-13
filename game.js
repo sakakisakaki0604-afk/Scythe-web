@@ -5,7 +5,7 @@
 import { MAP, RES, TERRAIN_RES, isRiver } from './legacy-map.js';
 import {
   BASE_FACTIONS, BASE_MATS, MAT_NUMBER, MECH_SLOTS, RIVERWALK, BOTTOM_ORDER, BOTTOM_RES,
-  RECRUIT_ONETIME, RECRUIT_ONGOING, TOP_CUBES, topOf, structOf,
+  RES_NAMES, RECRUIT_ONETIME, RECRUIT_ONGOING, TOP_CUBES, topOf, structOf,
 } from './data.js';
 import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './cards.js';
 
@@ -233,6 +233,16 @@ export function apply(stIn, uid, action, rng = Math.random) {
       log(st, uid, `セクション${a.section === 'factory' ? '（工場）' : a.section + 1}を選択`);
       break;
     }
+    case 'convert': {
+      if (st.pending) fail('処理中の項目があります');
+      const give = a.give || [];
+      if (give.length !== 2 || !give.every((r) => RES.includes(r)) || !RES.includes(a.to)) fail('資源の指定が不正です');
+      if (controller(st, a.hex) !== uid || !myWorkersAt(st, uid, a.hex)) fail('資源は自分のワーカーがいる支配領土に置きます');
+      pay(st, uid, give.reduce((o, r) => ({ ...o, [r]: (o[r] || 0) + 1 }), {}));
+      st.hexes[a.hex].res[a.to] = (st.hexes[a.hex].res[a.to] || 0) + 1;
+      log(st, uid, `資源交換：${give.map((r) => RES_NAMES[r]).join('・')} → ${RES_NAMES[a.to]}`);
+      break;
+    }
     case 'cancelSection': {
       if (phase !== 'top' || t.topTaken) fail('上段アクションを行う前だけ取り消せます');
       p.section = p.last; t.phase = 'section';
@@ -359,10 +369,7 @@ function doMove(st, uid, a, ctx) {
   const p = st.players[uid], mv = st.turn.move;
   const unit = a.unit;
   if (mv.kind === 'move' && mv.moved.includes(unit)) fail('同じユニットは1回の移動アクションで1度だけです');
-  if (mv.kind === 'factoryMove') { if (mv.single && mv.single !== unit) fail('工場の移動は同じユニットを2回まで'); }
-  const allow = mv.kind === 'factoryMove'
-    ? (mv.idx === 0 && unit[0] !== 'w' && hasAbility(st, uid, 'speed') ? 2 : 1)
-    : undefined;
+  const allow = undefined;
   const from = unitHex(st, uid, unit);
   const cand = moveTargets(st, uid, unit, allow).find((c) => c.to === a.to);
   if (!cand) fail('そこへは移動できません');
@@ -374,7 +381,7 @@ function doMove(st, uid, a, ctx) {
   }
   const before = unitsAt(st, a.to);
   setUnitHex(st, uid, unit, a.to);
-  mv.moved.push(unit); mv.single = mv.kind === 'factoryMove' ? unit : null; mv.idx++; mv.left--;
+  mv.moved.push(unit);  mv.idx++; mv.left--;
   const fighter = unit[0] !== 'w';
   let stop = false;
   const enemies = Object.keys(before).filter((u) => u !== uid);
@@ -627,7 +634,7 @@ function runBottom(st, uid, kind, a, ctx, free) {
   const i = st.order.indexOf(uid), n = st.order.length;
   const chain = [...new Set([uid, st.order[(i + 1) % n], st.order[(i + n - 1) % n]])];
   for (const u of chain) {
-    for (const r of st.players[u].recruits) if (r.section === kind) gain(st, u, RECRUIT_ONGOING[kind], st.players[u].char, ctx);
+    for (const r of st.players[u].recruits) if (r.section === kind) { gain(st, u, RECRUIT_ONGOING[kind], st.players[u].char, ctx); log(st, u, `徴兵の常時ボーナス獲得（${kind}）`); }
   }
 }
 

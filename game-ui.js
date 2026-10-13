@@ -21,7 +21,7 @@ const corner = (cx, cy, i) => { const a = (Math.PI / 180) * (60 * i - 30); retur
 export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   const ui = {
     selUnit: null, targets: [], carry: false, pick: null, sel: null, zoom: 1, resMode: false, objOpen: true, produce: [],
-    trade: { r1: 'oil', r2: 'wood', hex: null }, free: { top: 'move', kind: null, hex: null, type: 'monument', mech: 0, slot: 'upgrade', from: 'upgrade', bonus: 'power' }, bot: { top: 'move', slot: 'upgrade', mech: 0, hex: null, type: 'monument', from: 'upgrade', bonus: 'power' },
+    trade: { r1: 'oil', r2: 'wood', hex: null }, conv: { a: 'oil', b: 'oil', to: 'wood', hex: null }, free: { top: 'move', kind: null, hex: null, type: 'monument', mech: 0, slot: 'upgrade', from: 'upgrade', bonus: 'power' }, bot: { top: 'move', slot: 'upgrade', mech: 0, hex: null, type: 'monument', from: 'upgrade', bonus: 'power' },
     fac: { hex: null, r1: 'oil', r2: 'wood' }, combat: { dial: 0, cards: [] }, enc: [], sound: true, lastLog: 0,
   };
   const busy = new Set();
@@ -64,6 +64,12 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
 
   // ---------------------------------------------------------------- 盤面
   const RES_OF = { mountain: 'metal', tundra: 'oil', farm: 'food', forest: 'wood' };
+  function prodMode(ctx) {
+    const { st, me } = ctx, p = st.players[me];
+    if (st.turnUid !== me) return false;
+    if (st.pending) return st.pending.type === 'free' && (st.pending.queue[0].k === 'produce');
+    return st.turn.phase === 'top' && p.section != null && (p.section === 'factory' ? false : topOf(p.mat, p.section) === 'produce');
+  }
   function boardSVG(ctx) {
     const { st, me } = ctx; ctx_names = ctx.names;
     const colorOf = (uid) => COLORS[st.order.indexOf(uid)] || '#888';
@@ -73,16 +79,16 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       const h = MAP.hexes[id], [X, Y] = h.px || PX(h.q, h.r), hs = st.hexes[id];
       const poly = [0, 1, 2, 3, 4, 5].map((i) => corner(0, 0, i).map((v) => v.toFixed(1)).join(',')).join(' ');
       const homeColor = h.home ? colorOf(Object.keys(st.players).find((u) => st.players[u].faction === h.home) || '') : null;
-      const sel = ui.sel === id, isT = tg.has(id), pk = ui.pick && ui.pick.ok?.(id);
-      const hi = sel || isT || pk, hc = sel ? '#ffffff' : isT ? '#00f0ff' : '#7dff7d';
+      const sel = ui.sel === id, isT = tg.has(id), pk = ui.pick && ui.pick.ok?.(id), ps = prodMode(ctx) && ui.produce.includes(id), pc = prodMode(ctx) && !ps && producibleHexes(st, me).includes(id);
+      const hi = sel || isT || pk || ps || pc, hc = ps ? '#ffd400' : sel ? '#ffffff' : isT ? '#00f0ff' : '#7dff7d';
       const shape = h.home
         ? `<circle r="${SIZE * 0.95}" fill="#000" fill-opacity=".01" stroke="${hi ? hc : 'none'}" stroke-width="3.4"/>`
-        : `<polygon points="${poly}" fill="${hi ? hc : '#000'}" fill-opacity="${hi ? 0.25 : 0.01}" stroke="${hi ? hc : 'none'}" stroke-width="3.4" stroke-linejoin="round"/>`;
+        : `<polygon points="${poly}" fill="${hi ? hc : '#000'}" fill-opacity="${ps ? 0.5 : hi ? 0.25 : 0.01}" stroke="${hi ? hc : 'none'}" stroke-width="${ps ? 6 : 3.4}" stroke-linejoin="round"/>`;
       const rIcon = ui.resMode && RES_OF[h.terrain] ? `<image href="${RES_OF[h.terrain]}.png" x="${-SIZE * 0.55}" y="${-SIZE * 0.55}" width="${SIZE * 1.1}" height="${SIZE * 1.1}" opacity=".95" pointer-events="none"/>`
         : ui.resMode && h.terrain === 'village' ? `<image href="people.png" x="${-SIZE * 0.55}" y="${-SIZE * 0.55}" width="${SIZE * 1.1}" height="${SIZE * 1.1}" opacity=".95" pointer-events="none"/>` : '';
       const dim = ui.resMode && !h.home ? `<polygon points="${poly}" fill="#000" fill-opacity=".5" pointer-events="none"/>` : '';
       hexes += `<g class="hx" data-hex="${id}" transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">
-        ${dim}${shape}${rIcon}${isT ? `<text y="6" text-anchor="middle" class="stp">${ui.targets.find((t) => t.to === id)?.steps ?? ''}</text>` : ''}
+        ${dim}${shape}${rIcon}${ps ? '<text y="8" text-anchor="middle" class="stp">✔</text>' : ''}${isT ? `<text y="6" text-anchor="middle" class="stp">${ui.targets.find((t) => t.to === id)?.steps ?? ''}</text>` : ''}
         ${hs.enc ? `<circle cx="18" cy="-21" r="8" fill="#e8c14a" stroke="#222"><title>遭遇トークン</title></circle><text x="18" y="-17.5" class="eb">!</text>` : ''}
         ${structMark(st, hs, colorOf, ctx)}
         ${resChips(hs, 0, 0)}
@@ -130,7 +136,9 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       list.forEach((e, i) => { out += dot(e, pos[i][0], pos[i][1], 1); });
     } else {
       const groups = [];
-      for (const e of list) { const g = groups.find((x) => x.uid === e.uid && x.shape === e.shape); if (g) g.n++; else groups.push({ ...e, unit: e.shape === 'c' ? 'char' : null, n: 1 }); }
+      for (const e of list) { const g = groups.find((x) => x.uid === e.uid && x.shape === e.shape); if (g) { g.n++; g.units.push(e.unit); } else groups.push({ ...e, units: [e.unit], n: 1 }); }
+      const mv = st.turn.move;
+      for (const g of groups) g.unit = g.units.find((u) => !(mv && mv.kind === 'move' && mv.moved.includes(u))) || g.units[0];
       const pos = groups.length <= 2 ? groups.map((_, i) => [(i - (groups.length - 1) / 2) * 22, 3]) : groups.map((_, i) => [(i % 3 - 1) * 20, -4 + Math.floor(i / 3) * 18]);
       groups.forEach((g, i) => { out += dot(g, pos[i][0], pos[i][1], g.n); });
     }
@@ -174,7 +182,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (t.phase === 'moving') return movingPanel(ctx);
     if (t.phase === 'bottom') {
       const kb = p.section === 'factory' ? 'factoryMove' : BOTTOM_ORDER[p.section];
-      return `<div class="card"><h2>下段：${kb === 'factoryMove' ? '移動（同じ1ユニットを最大2回）' : BOTTOM_NAMES[kb]}</h2>${bottomForm(ctx, kb)}
+      return `<div class="card"><h2>下段：${kb === 'factoryMove' ? '移動（最大2回）' : BOTTOM_NAMES[kb]}</h2>${bottomForm(ctx, kb)}
         <div class="row"><button class="ghost" data-act="bot-skip">下段を行わない</button></div></div>`;
     }
     return '';
@@ -218,12 +226,14 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   }
 
   const UP_EFFECT = { move: '移動+1マス', bolster: '戦力+1／カード+1', trade: '支持+1／資源+1', produce: '生産+1領土' };
+const BON_NAME = { power: '戦力+2', coins: 'コイン+2', pop: '支持+2', card: '戦闘カード+2' };
+const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enlist: '戦闘カード+1' };
   const topOpts = (p, cur) => Object.keys(TOP_CUBES).filter((t) => (p.up[t] || 0) < TOP_CUBES[t]).map((t) => `<option value="${t}" ${cur === t ? 'selected' : ''}>${TOP_NAMES[t]}：${UP_EFFECT[t]}</option>`).join('');
   const slotOpts = (p, cur) => { const m = BASE_MATS[p.mat]; return BOTTOM_ORDER.filter((s) => p.red[s] < m.lower[s][1]).map((s) => { const c = Math.max(0, m.lower[s][0] - p.red[s]); return `<option value="${s}" ${cur === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}：コスト${c}→${Math.max(0, c - 1)}</option>`; }).join(''); };
   const upNote = '<p class="mute">改良：上段の強化（効果は選択肢に表示）を得て、下段のコストが1下がります。</p>';
   function bottomForm(ctx, kind) {
     const { st, me } = ctx, p = st.players[me], m = BASE_MATS[p.mat];
-    if (kind === 'factoryMove') return `<p class="mute">工場セクションの下段です。<b>好きな1ユニット</b>（ワーカー・メック・キャラクターのどれでも）を選び、そのユニットだけを<b>最大2回</b>続けて移動できます（1回ごとに通常の移動力ぶん進める）。2体を動かすことはできません。</p><div class="row"><button data-act="bot-factory">移動を始める</button></div>`;
+    if (kind === 'factoryMove') return `<p class="mute">工場セクションの下段です。<b>ユニットを最大2回</b>移動できます（別々の2体でも、同じユニットを2回でも可。1回ごとに通常の移動力ぶん進める）。</p><div class="row"><button data-act="bot-factory">移動を始める</button></div>`;
     const cost = Math.max(0, m.lower[kind][0] - p.red[kind]);
     const head = `<p>コスト：${RES_NAMES[BOTTOM_RES[kind]]} ${cost}（持っている${RES_NAMES[BOTTOM_RES[kind]]} ${resTotals(st, me)[BOTTOM_RES[kind]]}）／ 報酬：${m.lower[kind][2]}コイン</p>`;
     const b = ui.bot;
@@ -242,7 +252,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const fromFree = BOTTOM_ORDER.filter((s) => !p.recruits.some((r) => r.section === s));
     const bonFree = RECRUIT_ONETIME.filter((x) => !p.recruits.some((r) => r.bonus === x));
     const BN = { power: '戦力+2', coins: 'コイン+2', pop: '支持+2', card: '戦闘カード+2' };
-    return head + `<div class="row">徴兵トークンの取得元 <select data-bind="bot.from">${fromFree.map((s) => `<option value="${s}" ${b.from === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}</option>`).join('')}</select> 一時ボーナス <select data-bind="bot.bonus">${bonFree.map((x) => `<option value="${x}" ${b.bonus === x ? 'selected' : ''}>${BN[x]}</option>`).join('')}</select><button data-act="bot-go">徴兵する</button></div>`;
+    return head + `<p class="mute">徴兵：①選んだ下段に徴兵トークンを置く → 以後、<b>自分と両隣の人</b>がその下段を行うたびに<b>常時ボーナス</b>が入ります。②同時に<b>一時ボーナス</b>を今すぐ獲得（4枠は各1回）。4つ揃うと星。</p><div class="row">徴兵トークンの取得元 <select data-bind="bot.from">${fromFree.map((s) => `<option value="${s}" ${b.from === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}（常時：${ONG[s]}）</option>`).join('')}</select> 一時ボーナス <select data-bind="bot.bonus">${bonFree.map((x) => `<option value="${x}" ${b.bonus === x ? 'selected' : ''}>${BN[x]}</option>`).join('')}</select><button data-act="bot-go">徴兵する</button></div>`;
   }
 
   function encounterPanel(ctx) {
@@ -274,7 +284,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       const fromFree = BOTTOM_ORDER.filter((s) => !p.recruits.some((r) => r.section === s));
       const bonFree = RECRUIT_ONETIME.filter((x) => !p.recruits.some((r) => r.bonus === x));
       const BN = { power: '戦力+2', coins: 'コイン+2', pop: '支持+2', card: '戦闘カード+2' };
-      body = `取得元 <select data-bind="free.from">${fromFree.map((s) => `<option value="${s}" ${f.from === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}</option>`).join('')}</select> 一時ボーナス <select data-bind="free.bonus">${bonFree.map((x) => `<option value="${x}" ${f.bonus === x ? 'selected' : ''}>${BN[x]}</option>`).join('')}</select>`;
+      body = `取得元 <select data-bind="free.from">${fromFree.map((s) => `<option value="${s}" ${f.from === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}（常時：${ONG[s]}）</option>`).join('')}</select> 一時ボーナス <select data-bind="free.bonus">${bonFree.map((x) => `<option value="${x}" ${f.bonus === x ? 'selected' : ''}>${BN[x]}</option>`).join('')}</select>`;
     } else if (k === 'produce') {
       body = `<div class="chips">${producible(ctx).map((id) => `<button class="chip ${ui.produce.includes(id) ? 'on' : ''}" data-act="produce-toggle" data-v="${id}">${TERR[MAP.hexes[id].terrain][1]} ${id}</button>`).join('')}</div>`;
     } else if (k === 'anyRes') {
@@ -382,7 +392,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
         <div class="at"><b>${TOP_NAMES[top]}</b><span class="cubes" title="上段の改良キューブ（取ると強化）">${top === 'move' || TOP_CUBES[top] ? Array.from({ length: TOP_CUBES[top] || 0 }, (_, i) => `<i class="cube ${i < (p.up[top] || 0) ? 'gone' : ''}"></i>`).join('') : ''}${p.up[top] ? `<em>強化+${p.up[top]}</em>` : ''}</span><small>${TOP_TEXT[top]}</small>${top === 'produce' ? `<small class="pv">${prodPreview(ctx)}</small>` : ''}</div>
         <div class="as ${built ? 'built' : ''}"><img class="ri" src="${sk}.png" alt="">${STRUCT_NAMES[sk]}${built ? '（建設済・効果発動中）' : '（未建設）'}<small>${STRUCT_TEXT[sk]}</small></div>
         <div class="ab"><b>${BOTTOM_NAMES[bk]}</b><small>${BOTTOM_TEXT[bk]}</small>
-          <span class="cost">${RESIMG(BOTTOM_RES[bk])}×${cost}${p.red[bk] ? ` <i>(基本${base}−${p.red[bk]})</i>` : ''}</span>
+          ${(() => { const r = p.recruits.find((x) => x.section === bk); return r ? `<div class="recr"><b>🪖 徴兵済み</b><br>【常時】この下段を自分か両隣が行うたび <b>${ONG[bk]}</b><br>【一時・獲得済】${BON_NAME[r.bonus]}</div>` : `<div class="recr off">🪖 徴兵：未（徴兵するとこの下段に常時ボーナス <b>${ONG[bk]}</b> が付く）</div>`; })()}<span class="cost">${RESIMG(BOTTOM_RES[bk])}×${cost}${p.red[bk] ? ` <i>(基本${base}−${p.red[bk]})</i>` : ''}</span>
           <span class="cubes" title="下段のキューブ枠（埋めるとコスト-1）">${Array.from({ length: maxRed }, (_, i) => `<i class="cube slot ${i < p.red[bk] ? 'fill' : ''}"></i>`).join('')}</span><small>報酬 ${ICO.coins}${coin}</small></div></${pick ? 'button' : 'div'}>`;
     }).join('');
     return `<div class="mat amat" style="background-image:linear-gradient(rgba(10,8,6,.5),rgba(10,8,6,.85)),url(mat_${MAT_IMG[p.mat] || 1}.jpg)">
@@ -392,7 +402,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
 
   function modalHtml(ctx) {
     const { st } = ctx;
-    const inner = panelAction(ctx);
+    const inner = ui.convOpen && ctx.st.turnUid === ctx.me && !ctx.st.pending && ctx.st.turn.phase !== 'moving' ? convertPanel(ctx, true) : panelAction(ctx);
     if (!inner) return '';
     if (st.over) return `<div class="modal wide">${inner}</div>`;
     const pos = ui.mpos ? `left:${ui.mpos.x}px;top:${ui.mpos.y}px;transform:none;` : '';
@@ -409,6 +419,12 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     return `<div class="objbox"><button class="ghost sm fold" data-act="objtoggle">▲ たたむ</button><b>目的カード</b>
       <div class="ob mute">条件を満たした時点で自動的に星1つを獲得します（操作不要・星は1枚分のみ）</div>
       ${list.length ? list.map(row).join('') : '<div class="ob mute">なし</div>'}${got ? '<div class="ob">⭐ 目的の星を獲得済み</div>' : ''}<div class="ob bt"><b>建物ボーナス</b><span>${esc(bt?.text || '')}</span></div></div>`;
+  }
+  function convertPanel(ctx, inModal) {
+    const { st, me } = ctx;
+    if (st.turnUid !== me || st.pending || st.over) return '';
+    return `<div class="card"><h2>⇄ 資源交換</h2><p class="mute">任意の資源2個 → 任意の資源1個（自分のワーカーがいる支配領土に置く）</p>
+      <div class="row">${resSel('conv.a', ui.conv.a)} ＋ ${resSel('conv.b', ui.conv.b)} → ${resSel('conv.to', ui.conv.to)} ${hexBtn('置く領土', 'conv.hex', ui.conv.hex)}<button data-act="convert">交換する</button>${inModal ? '<button class="ghost" data-act="convtoggle">閉じる</button>' : ''}</div></div>`;
   }
   function hexPanel(ctx) {
     const { st } = ctx;
@@ -434,12 +450,12 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const mine = st.turnUid === me && !st.over;
     root.innerHTML = `
       <div class="turnbar ${mine ? 'mine' : ''}">${st.over ? 'ゲーム終了' : `手番：<b>${nm(ctx, st.turnUid)}</b>${mine ? '（あなた）' : ''}`} <span class="mute">ターン${st.turnNo}</span>
-        <span class="tools"><button class="ghost sm ${ui.resMode ? 'on' : ''}" data-act="resmode">${ui.resMode ? '通常マップに戻す' : '取れる資源を表示'}</button>${mine ? `<button class="endbtn" data-act="endTurn" ${st.pending ? 'disabled' : ''}>ターン終了</button>` : ''}<button class="ghost sm" data-act="zoom-">−</button><button class="ghost sm" data-act="zoom+">＋</button>
+        <span class="tools"><button class="ghost sm" data-act="convtoggle">⇄ 資源交換</button><button class="ghost sm ${ui.resMode ? 'on' : ''}" data-act="resmode">${ui.resMode ? '通常マップに戻す' : '取れる資源を表示'}</button>${mine ? `<button class="endbtn" data-act="endTurn" ${st.pending ? 'disabled' : ''}>ターン終了</button>` : ''}<button class="ghost sm" data-act="zoom-">−</button><button class="ghost sm" data-act="zoom+">＋</button>
         <label class="chk"><input type="checkbox" data-bind="sound" ${ui.sound ? 'checked' : ''}> 効果音</label></span></div>
       ${st.over ? '' : stepsBar(st)}
       <div class="game"><div class="boardwrap" id="boardwrap">${boardSVG(ctx)}${objBox(ctx)}</div>
       <div class="mats2">${st.over ? '' : `${factionMat(ctx)}${actionMat(ctx)}`}</div></div>
-      <div class="below">${comparePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>${modalHtml(ctx)}`;
+      <div class="below">${convertPanel(ctx)}${comparePanel(ctx)}${hexPanel(ctx)}${logPanel(ctx)}</div>${modalHtml(ctx)}`;
     root.querySelectorAll('select[data-bind]').forEach((el) => setPath(el.dataset.bind, el.value));
     if (st.log.length !== ui.lastLog) {
       if (ui.lastLog) {
@@ -538,7 +554,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (!mv) return;
     if (mv.kind === 'move' && mv.moved.includes(unit)) return toast('そのユニットはすでに動かしました');
     ui.selUnit = unit; ui.pick = null;
-    const allow = mv.kind === 'factoryMove' ? (mv.idx === 0 && unit[0] !== 'w' && st.players[me].mechs.some((m) => MECH_SLOTS[st.players[me].faction][m.slot] === 'speed') ? 2 : 1) : undefined;
+    const allow = undefined;
     ui.targets = moveTargets(st, me, unit, allow);
     render();
   }
@@ -546,6 +562,10 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   function onHex(ctx, id) {
     const { st, me } = ctx;
     if (ui.pick && st.turn.phase === 'moving' && !st.pending) ui.pick = null;
+    if (!ui.pick && prodMode(ctx) && producibleHexes(st, me).includes(id)) {
+      const lim = 2 + (st.players[me].up.produce || 0);
+      ui.produce = ui.produce.includes(id) ? ui.produce.filter((x) => x !== id) : [...ui.produce, id].slice(-lim); render(); return;
+    }
     if (ui.pick) {
       const { key } = ui.pick;
       if (!ui.pick.ok(id)) { toast('そこは選べません'); return; }
@@ -554,6 +574,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       else if (key === 'fac.hex') ui.fac.hex = id;
       else if (key === 'bot.hex') ui.bot.hex = id;
       else if (key === 'free.hex') ui.free.hex = id;
+      else if (key === 'conv.hex') ui.conv.hex = id;
       if (key !== 'produce') ui.pick = null;
       render(); return;
     }
@@ -598,6 +619,10 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       case 'bolster-power': act({ t: 'top', kind: 'bolster', mode: 'power' }); break;
       case 'bolster-card': act({ t: 'top', kind: 'bolster', mode: 'card' }); break;
       case 'trade-pop': act({ t: 'top', kind: 'trade', mode: 'pop' }); break;
+      case 'convtoggle': ui.convOpen = !ui.convOpen; render(); break;
+      case 'convert':
+        if (!ui.conv.hex) return toast('置く領土を選んでください');
+        act({ t: 'convert', give: [ui.conv.a, ui.conv.b], to: ui.conv.to, hex: ui.conv.hex }); break;
       case 'trade-res':
         if (!ui.trade.hex) return toast('資源を置く領土を選んでください');
         act({ t: 'top', kind: 'trade', mode: 'res', res: [{ type: ui.trade.r1, hex: ui.trade.hex }, { type: ui.trade.r2, hex: ui.trade.hex }] }); break;

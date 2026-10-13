@@ -42,7 +42,7 @@ export function makeNet(db, roomId, uid) {
     return runTransaction(db, async (tx) => {
       const rs = await tx.get(roomRef); const ds = await tx.get(deckRef);
       const room = rs.data(); const deck = ds.data();
-      let rem = deck.encRemaining?.length ? deck.encRemaining : ENCOUNTERS.map((e) => e.id);
+      let rem = deck.encRemaining?.length ? deck.encRemaining : (deck.encAll || ENCOUNTERS.map((e) => e.id));
       const cardId = pick(rem);
       rem = rem.filter((c) => c !== cardId);
       const res = apply(JSON.parse(room.game.json), uid, { t: 'encounterDraw', cardId });
@@ -105,12 +105,12 @@ export function makeNet(db, roomId, uid) {
 }
 
 /** ゲーム開始時の山札ドキュメント */
-export function initialDeck(players) {
+export function initialDeck(players, allowed) {
   return {
     counts: { 2: 16, 3: 12, 4: 8, 5: 6 }, discards: { 2: 0, 3: 0, 4: 0, 5: 0 },
     grants: Object.fromEntries(players.map((p) => [p.uid, p.combatCards])),
-    objPool: OBJECTIVES.map((o) => o.id).sort(() => Math.random() - 0.5),
+    objPool: (allowed?.obj || OBJECTIVES.map((o) => o.id)).slice().sort(() => Math.random() - 0.5),
     objGrants: Object.fromEntries(players.map((p) => [p.uid, p.objectives])),
-    encRemaining: ENCOUNTERS.map((e) => e.id),
+    encRemaining: allowed?.enc || ENCOUNTERS.map((e) => e.id), encAll: allowed?.enc || null,
   };
 }

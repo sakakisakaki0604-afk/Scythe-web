@@ -1,7 +1,7 @@
 // 対戦画面（盤面SVG・操作パネル）。状態の判定は engine/game.js、保存は net.js。
 import { MAP, DIRS, PX } from './legacy-map.js';
 import {
-  BASE_FACTIONS, BASE_MATS, MECH_SLOTS, ABILITY_NAMES, ABILITY_TEXT, PASSIVE, TOP_TEXT, BOTTOM_TEXT, IMPLEMENTED_ABILITIES, BOTTOM_ORDER, BOTTOM_NAMES, BOTTOM_RES,
+  BASE_FACTIONS, BASE_MATS, TRAP_PENALTIES, MECH_SLOTS, ABILITY_NAMES, ABILITY_TEXT, PASSIVE, TOP_TEXT, BOTTOM_TEXT, IMPLEMENTED_ABILITIES, BOTTOM_ORDER, BOTTOM_NAMES, BOTTOM_RES,
   TOP_NAMES, STRUCT_NAMES, STRUCT_TEXT, RES_NAMES, TOP_CUBES, RECRUIT_ONETIME, topOf, structOf,
 } from './data.js';
 import {
@@ -10,7 +10,7 @@ import {
 import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './cards.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const COLORS = ['#d9534f', '#4a90d9', '#e0b43a', '#5cb85c', '#b36bd1'];
+const COLORS = ['#d9534f', '#4a90d9', '#e0b43a', '#5cb85c', '#b36bd1', '#e9843b', '#2bb5a8'];
 const TERR = {
   mountain: ['#8d8d93', '山'], farm: ['#d6c26a', '農'], tundra: ['#9fb9c8', '油'], forest: ['#4f7d41', '森'],
   village: ['#c98f5e', '村'], lake: ['#3f70b3', '湖'], factory: ['#80608f', '工場'], home: ['#5a5148', '本'],
@@ -90,7 +90,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       hexes += `<g class="hx" data-hex="${id}" transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">
         ${dim}${shape}${rIcon}${ps ? '<text y="8" text-anchor="middle" class="stp">✔</text>' : ''}${isT ? `<text y="6" text-anchor="middle" class="stp">${ui.targets.find((t) => t.to === id)?.steps ?? ''}</text>` : ''}
         ${hs.enc ? `<circle cx="18" cy="-21" r="8" fill="#e8c14a" stroke="#222"><title>遭遇トークン</title></circle><text x="18" y="-17.5" class="eb">!</text>` : ''}
-        ${structMark(st, hs, colorOf, ctx)}
+        ${structMark(st, hs, colorOf, ctx)}${trapMark(st, id, colorOf, ctx)}
         ${resChips(hs, 0, 0)}
         </g>`;
       top += `<g transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">${unitMarks(st, id, 0, 0, colorOf, me)}</g>`;
@@ -101,6 +101,12 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (!hs.structure) return '';
     const c = colorOf(hs.structure.owner), n = STRUCT_NAMES[hs.structure.type];
     return `<g class="struct"><title>${n}（${esc(ctx.names(hs.structure.owner))}）</title><circle cx="-18" cy="-21" r="10" fill="${c}" stroke="#fff" stroke-width="2"/><image href="${hs.structure.type}.png" x="-25" y="-28" width="14" height="14"/></g>`;
+  }
+  function trapMark(st, id, colorOf, ctx) {
+    const tr = (st.traps || []).find((x) => x.hex === id);
+    if (!tr) return '';
+    const c = colorOf(tr.owner), mine = tr.owner === ctx.me;
+    return `<g class="trap"><title>罠（${esc(ctx.names(tr.owner))}）${tr.armed ? '武装中' : '武装解除済み'}${mine ? '：' + TRAP_PENALTIES[tr.penalty] : ''}</title><rect x="-30" y="-6" width="20" height="20" rx="4" fill="${tr.armed ? c : '#555'}" stroke="#fff" stroke-width="1.8" ${tr.armed ? '' : 'stroke-dasharray="3 2"'}/><text x="-20" y="8.5" class="ub" style="font-size:11px">罠</text></g>`;
   }
   // 資源：2種類までは個別、3種類以上は合計1つにまとめる（小さいマスでも重ならない）
   function resChips(hs) {
@@ -150,7 +156,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const ph = st.turn.phase, pd = st.pending;
     const cur = pd?.type === 'combat' ? 1 : pd ? 2 : { section: 0, top: 1, moving: 1, bottom: 2, end: 3 }[ph] ?? 0;
     const S = ['① セクション選択', '② 上段アクション', '③ 下段アクション', '④ ターン終了'];
-    return `<div class="steps">${S.map((x, i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}">${x}</span>`).join('')}${pd ? `<span class="pend">${{ combat: '戦闘中', encounter: '遭遇', factory: '工場カード選択', free: '無料効果' }[pd.type] || ''}</span>` : ''}</div>`;
+    return `<div class="steps">${S.map((x, i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}">${x}</span>`).join('')}${pd ? `<span class="pend">${{ combat: '戦闘中', trap: '罠の設置', encounter: '遭遇', factory: '工場カード選択', free: '無料効果' }[pd.type] || ''}</span>` : ''}</div>`;
   }
 
   // ---------------------------------------------------------------- パネル
@@ -169,6 +175,8 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (st.pending?.type === 'combat') return combatPanel(ctx);
     if (!mine) return '';
     if (st.pending?.type === 'encounter') return encounterPanel(ctx);
+    if (st.pending?.type === 'trap') return `<div class="card"><h2>🪤 罠を設置（${esc(st.pending.hex)}）</h2><p class="mute">キャラクターのいる領土に罠を1つ置けます（置いた罠は動かせません）。武装中の罠は、終了時にあなたの支配領土になり、相手ユニットが入ると移動が止まってペナルティを与えます。</p>
+      <div class="row">${p.traps.map((x) => `<button data-act="trap" data-v="${x}">${TRAP_PENALTIES[x]}の罠</button>`).join('')}<button class="ghost" data-act="trap" data-v="">置かない</button></div></div>`;
     if (st.pending?.type === 'free') return freePanel(ctx);
     if (st.pending?.type === 'factory') {
       return `<div class="card"><h2>工場カードを選ぶ（1枚・変更不可）</h2>${st.factoryCandidates.map((id) => {
@@ -392,7 +400,7 @@ const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enl
         <div class="at"><b>${TOP_NAMES[top]}</b><span class="cubes" title="上段の改良キューブ（取ると強化）">${top === 'move' || TOP_CUBES[top] ? Array.from({ length: TOP_CUBES[top] || 0 }, (_, i) => `<i class="cube ${i < (p.up[top] || 0) ? 'gone' : ''}"></i>`).join('') : ''}${p.up[top] ? `<em>強化+${p.up[top]}</em>` : ''}</span><small>${TOP_TEXT[top]}</small>${top === 'produce' ? `<small class="pv">${prodPreview(ctx)}</small>` : ''}</div>
         <div class="as ${built ? 'built' : ''}"><img class="ri" src="${sk}.png" alt="">${STRUCT_NAMES[sk]}${built ? '（建設済・効果発動中）' : '（未建設）'}<small>${STRUCT_TEXT[sk]}</small></div>
         <div class="ab"><b>${BOTTOM_NAMES[bk]}</b><small>${BOTTOM_TEXT[bk]}</small>
-          ${(() => { const r = p.recruits.find((x) => x.section === bk); return r ? `<div class="recr"><b>🪖 徴兵済み</b><br>【常時】この下段を自分か両隣が行うたび <b>${ONG[bk]}</b><br>【一時・獲得済】${BON_NAME[r.bonus]}</div>` : `<div class="recr off">🪖 徴兵：未（徴兵するとこの下段に常時ボーナス <b>${ONG[bk]}</b> が付く）</div>`; })()}<span class="cost">${RESIMG(BOTTOM_RES[bk])}×${cost}${p.red[bk] ? ` <i>(基本${base}−${p.red[bk]})</i>` : ''}</span>
+          ${(() => { const r = p.recruits.find((x) => x.section === bk); return r ? `<div class="recr"><b>🪖 徴兵済み</b><br>【常時】この下段を自分か両隣が行うたび <b>${ONG[bk]}</b><br>【一時・獲得済】${BON_NAME[r.bonus]}</div>` : `<div class="recr off">🪖 未徴兵（徴兵すると常時 <b>${ONG[bk]}</b>）</div>`; })()}<span class="cost">${RESIMG(BOTTOM_RES[bk])}×${cost}${p.red[bk] ? ` <i>(基本${base}−${p.red[bk]})</i>` : ''}</span>
           <span class="cubes" title="下段のキューブ枠（埋めるとコスト-1）">${Array.from({ length: maxRed }, (_, i) => `<i class="cube slot ${i < p.red[bk] ? 'fill' : ''}"></i>`).join('')}</span><small>報酬 ${ICO.coins}${coin}</small></div></${pick ? 'button' : 'div'}>`;
     }).join('');
     return `<div class="mat amat" style="background-image:linear-gradient(rgba(10,8,6,.5),rgba(10,8,6,.85)),url(mat_${MAT_IMG[p.mat] || 1}.jpg)">
@@ -619,6 +627,7 @@ const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enl
       case 'bolster-power': act({ t: 'top', kind: 'bolster', mode: 'power' }); break;
       case 'bolster-card': act({ t: 'top', kind: 'bolster', mode: 'card' }); break;
       case 'trade-pop': act({ t: 'top', kind: 'trade', mode: 'pop' }); break;
+      case 'trap': act(v ? { t: 'trap', penalty: v } : { t: 'trap', skip: true }); break;
       case 'convtoggle': ui.convOpen = !ui.convOpen; render(); break;
       case 'convert':
         if (!ui.conv.hex) return toast('置く領土を選んでください');

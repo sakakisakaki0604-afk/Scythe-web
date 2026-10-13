@@ -19,7 +19,7 @@ for (const [a, b] of BOARD.rivers) {
   const ia = a.join(','), ib = b.join(',');
   if (hexes[ia] && hexes[ib]) { hexes[ia].river.push(ib); hexes[ib].river.push(ia); }
 }
-const BASE = ['nordic', 'rusviet', 'crimea', 'saxony', 'polania'];
+const BASE = ['nordic', 'rusviet', 'crimea', 'saxony', 'polania', 'togawa'];
 const homes = {}, startAdj = {};
 for (const f of BASE) {
   const hm = BOARD.homes[f], [x, y] = hm.px, hid = `home:${f}`;

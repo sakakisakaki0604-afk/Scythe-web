@@ -5,7 +5,7 @@
 import { MAP, RES, TERRAIN_RES, isRiver } from './legacy-map.js';
 import {
   BASE_FACTIONS, BASE_MATS, MAT_NUMBER, MECH_SLOTS, RIVERWALK, BOTTOM_ORDER, BOTTOM_RES,
-  RES_NAMES, RECRUIT_ONETIME, RECRUIT_ONGOING, TOP_CUBES, topOf, structOf,
+  RES_NAMES, TRAP_PENALTIES, RECRUIT_ONETIME, RECRUIT_ONGOING, TOP_CUBES, topOf, structOf,
 } from './data.js';
 import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './cards.js';
 
@@ -21,7 +21,7 @@ export function createGame({ players, bonusTileId, factoryIds, gid = 'g0' }) {
   const st = {
     v: 1, gid, order, turnUid: order[0], turnNo: 1, over: false, result: null,
     bonusTile: bonusTileId, factoryCandidates: [...factoryIds], log: [], hexes: {}, players: {},
-    turn: { phase: 'section' }, pending: null,
+    turn: { phase: 'section' }, pending: null, traps: [],
   };
   for (const id of MAP.ids) st.hexes[id] = { res: {}, structure: null, enc: MAP.hexes[id].encounter };
   for (const { uid, faction, mat } of players) {
@@ -30,7 +30,7 @@ export function createGame({ players, bonusTileId, factoryIds, gid = 'g0' }) {
       faction, mat, power: f.power, pop: m.popularity, coins: m.coins, hand: f.combatCards, objs: m.objectives,
       section: null, last: null, char: MAP.homes[faction], mechs: [], workers: [...MAP.startAdj[faction]], matWorkers: 6,
       red: { upgrade: 0, deploy: 0, build: 0, enlist: 0 }, cubes: 0, structures: [], recruits: [],
-      stars: [], combatWins: 0, factory: null, up: { move: 0, bolster: 0, trade: 0, produce: 0 },
+      stars: [], combatWins: 0, factory: null, traps: faction === 'togawa' ? ['pop', 'power', 'coins', 'cards'] : [], up: { move: 0, bolster: 0, trade: 0, produce: 0 },
     };
   }
   log(st, order[0], 'ゲーム開始');
@@ -60,7 +60,8 @@ export function controller(st, hex) {
   const u = Object.keys(unitsAt(st, hex));
   if (u.length === 1) return u[0];
   if (u.length > 1) return null;
-  return st.hexes[hex].structure?.owner ?? null;
+  const tr = (st.traps || []).find((x) => x.hex === hex && x.armed);
+  return st.hexes[hex].structure?.owner ?? tr?.owner ?? null;
 }
 export const controlled = (st, uid) => MAP.ids.filter((h) => controller(st, h) === uid && H(h).terrain !== 'home');
 export const hasAbility = (st, uid, ab) => {
@@ -149,41 +150,53 @@ function setUnitHex(st, uid, unit, hex) {
 }
 
 /** 1ユニットの移動先候補 [{to, steps}] */
-export function moveTargets(st, uid, unit, stepsAllowed) {
+const enemyTrap = (st, uid, hex) => (st.traps || []).find((x) => x.hex === hex && x.armed && x.owner !== uid);
+export function moveTargets(st, uid, unit, stepsAllowed, opts = {}) {
   const p = st.players[uid];
   const from = unitHex(st, uid, unit);
   if (!from) return [];
   const isWorker = unit[0] === 'w';
   const maxSteps = stepsAllowed ?? (isWorker ? 1 : 1 + (hasAbility(st, uid, 'speed') ? 1 : 0) + (p.up?.move || 0));
   const rw = hasAbility(st, uid, 'riverwalk') ? RIVERWALK[p.faction] : [];
-  const seen = new Map([[from, 0]]);
+  const toka = !isWorker && !opts.noToka && hasAbility(st, uid, 'toka') && !st.turn?.move?.tokaUsed;
+  const suiton = !isWorker && hasAbility(st, uid, 'suiton');
+  const seen = new Set([`${from}|0`]), best = new Map([[from, 0]]);
   const out = [];
-  let frontier = [from];
+  let frontier = [[from, 0]];
   for (let s = 1; s <= maxSteps; s++) {
     const next = [];
-    for (const cur of frontier) {
-      // 途中経由は、敵ユニット・遭遇トークンのある領土では不可
+    for (const [cur, used] of frontier) {
+      // 途中経由は、敵ユニット・遭遇トークン・敵の武装した罠のある領土では不可
       const nbs = new Set([...H(cur).nb, ...topo(st, uid, cur)]);
       for (const c of nbs) {
-        if (seen.has(c)) continue;
         const ch = H(c);
-        if (ch.terrain === 'lake') continue;
+        if (ch.terrain === 'lake' && !suiton) continue;
         if (ch.terrain === 'home' && ch.home !== p.faction) continue;
         const viaTunnel = !H(cur).nb.includes(c);
+        let nu = used;
         if (!viaTunnel && isRiver(cur, c)) {
           const ok = (isWorker && p.faction === 'nordic') || rw.includes(ch.terrain);
-          if (!ok) continue;
+          if (!ok) { if (toka && !used) nu = 1; else continue; }
         }
+        if (seen.has(`${c}|${nu}`)) continue;
+        seen.add(`${c}|${nu}`);
         const here = unitsAt(st, c);
         const enemies = Object.keys(here).filter((u) => u !== uid);
         if (isWorker && enemies.length) continue; // ワーカーは敵のいる領土へ入れない
-        seen.set(c, s);
-        out.push({ to: c, steps: s });
-        const stops = enemies.length || st.hexes[c].enc;
-        if (!stops) next.push(c);
+        if (!best.has(c)) { best.set(c, s); out.push({ to: c, steps: s }); }
+        const stops = enemies.length || st.hexes[c].enc || enemyTrap(st, uid, c);
+        if (!stops) next.push([c, nu]);
       }
     }
     frontier = next;
+  }
+  // 忍び：罠トークンのある領土へ距離無視で移動
+  if (!isWorker && hasAbility(st, uid, 'shinobi')) {
+    for (const tr of st.traps || []) {
+      if (tr.owner !== uid || tr.hex === from || best.has(tr.hex)) continue;
+      if (H(tr.hex).terrain === 'lake' && !suiton) continue;
+      best.set(tr.hex, 1); out.push({ to: tr.hex, steps: 1 });
+    }
   }
   return out;
 }
@@ -280,6 +293,18 @@ export function apply(stIn, uid, action, rng = Math.random) {
       doEncounter(st, uid, a, ctx);
       break;
     }
+    case 'trap': {
+      if (!st.pending || st.pending.type !== 'trap') fail('罠を置く場面ではありません');
+      if (!a.skip) {
+        if (!p.traps.includes(a.penalty)) fail('その罠トークンは残っていません');
+        p.traps = p.traps.filter((x) => x !== a.penalty);
+        st.traps.push({ hex: st.pending.hex, owner: uid, penalty: a.penalty, armed: true });
+        log(st, uid, '罠を設置');
+      }
+      st.pending = null;
+      settle(st, uid, ctx);
+      break;
+    }
     case 'factory': {
       if (!st.pending || st.pending.type !== 'factory') fail('工場カードの選択ではありません');
       if (!st.factoryCandidates.includes(a.cardId)) fail('その工場カードは選べません');
@@ -373,6 +398,7 @@ function doMove(st, uid, a, ctx) {
   const from = unitHex(st, uid, unit);
   const cand = moveTargets(st, uid, unit, allow).find((c) => c.to === a.to);
   if (!cand) fail('そこへは移動できません');
+  if (unit[0] !== 'w' && hasAbility(st, uid, 'toka') && !mv.tokaUsed && !moveTargets(st, uid, unit, allow, { noToka: true }).some((c) => c.to === a.to)) mv.tokaUsed = true;
   // 運搬
   for (const [r, n] of Object.entries(a.carry || {})) {
     if (!RES.includes(r) || !Number.isInteger(n) || n < 0) fail('不正な運搬指定');
@@ -400,8 +426,29 @@ function doMove(st, uid, a, ctx) {
     }
   }
   if (unit === 'char' && st.hexes[a.to].enc) stop = true;
+  if (unit === 'char') st.turn.charMoved = true;
+  // 罠：相手の武装した罠に入ると移動が止まり、ペナルティを受けて罠は武装解除される
+  const trap = enemyTrap(st, uid, a.to);
+  if (trap) {
+    trap.armed = false; stop = true;
+    applyPenalty(st, uid, trap.penalty, ctx);
+    log(st, uid, `罠にかかった！（${TRAP_PENALTIES[trap.penalty]}）`);
+  }
+  // 忍び：自分の武装解除済みの罠の上で止まったら再武装（戦闘になるなら勝利時のみ）
+  const own = (st.traps || []).find((x) => x.hex === a.to && x.owner === uid && !x.armed);
+  if (own && unit[0] !== 'w' && hasAbility(st, uid, 'shinobi') && (mv.kind === 'move')) {
+    if (st.turn.combatWith) st.turn.rearm = a.to; else { own.armed = true; log(st, uid, '罠を再武装'); }
+  }
   log(st, uid, `${unit === 'char' ? 'キャラクター' : unit[0] === 'm' ? 'メック' : 'ワーカー'}が移動`);
   if (stop || mv.left <= 0) finishMove(st, uid, ctx);
+}
+
+function applyPenalty(st, uid, pen, ctx) {
+  const p = st.players[uid];
+  if (pen === 'pop') p.pop = Math.max(0, p.pop - 2);
+  else if (pen === 'power') p.power = Math.max(0, p.power - 3);
+  else if (pen === 'coins') p.coins = Math.max(0, p.coins - 4);
+  else if (pen === 'cards') { const n = Math.min(2, p.hand); p.hand -= n; ctx.cardPays = (ctx.cardPays || 0) + n; }
 }
 
 function finishMove(st, uid, ctx) {
@@ -411,6 +458,10 @@ function finishMove(st, uid, ctx) {
     st.turn.combatWith = null;
     const defU = unitsAt(st, cw.hex);
     st.combatSeq = (st.combatSeq || 0) + 1;
+    for (const u of [uid, cw.defender]) { // 浪人：戦闘に出るユニットが1体だけ（ワーカー無し）なら戦力+2
+      const pl = st.players[u], d = defU[u];
+      if (hasAbility(st, u, 'ronin') && d && (d.char ? 1 : 0) + d.mechs === 1 && !d.workers) { pl.power = Math.min(POWER_MAX, pl.power + 2); log(st, u, '浪人：戦力+2'); }
+    }
     st.pending = {
       type: 'combat', seq: st.combatSeq, key: `${st.gid}_${st.combatSeq}`, hex: cw.hex, attacker: uid, defender: cw.defender,
       attUnits: (defU[uid]?.char ? 1 : 0) + (defU[uid]?.mechs || 0),
@@ -432,6 +483,12 @@ function settle(st, uid, ctx) {
   if (p.char === '0,0' && !p.factory && st.factoryCandidates.length && !t.factoryOffered) {
     st.pending = { type: 'factory' };
     t.factoryOffered = true;
+    return;
+  }
+  if (p.faction === 'togawa' && t.charMoved && !t.trapOffered && p.traps.length && p.char !== homeOf(st, uid)
+    && !(st.traps || []).some((x) => x.hex === p.char)) {
+    t.trapOffered = true;
+    st.pending = { type: 'trap', hex: p.char };
     return;
   }
   t.phase = t.afterMove === 'bottom' ? 'end' : 'bottom';
@@ -475,6 +532,8 @@ function doCombat(st, uid, a, ctx) {
   if (wp.combatWins < maxStars) { wp.combatWins++; addStar(st, winner, `combat${wp.combatWins}`); }
   log(st, winner, `戦闘に勝利（${choice.att.sum} 対 ${choice.def.sum}）`);
   st.lastCombat = { hex: pd.hex, att: choice.att, def: choice.def, winner };
+  if (st.turn.rearm === pd.hex && winner === pd.attacker) { const tr = (st.traps || []).find((x) => x.hex === pd.hex && x.owner === pd.attacker); if (tr) { tr.armed = true; log(st, winner, '罠を再武装'); } }
+  st.turn.rearm = null;
   st.pending = null;
   settle(st, uid, ctx);
 }

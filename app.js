@@ -5,6 +5,10 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { BASE_FACTIONS, BASE_MATS, isLegalCombo } from './data.js';
+import { DEFAULT_EXP, allowedCards } from './cards.js';
+const expOf = (r) => ({ ...DEFAULT_EXP, ...(r?.settings?.exp || {}) });
+const factionIds = (r) => Object.keys(BASE_FACTIONS).filter((f) => !BASE_FACTIONS[f].ext || expOf(r)[BASE_FACTIONS[f].ext]);
+const maxPlayers = (r) => factionIds(r).length;
 import { resolveDraft, validatePrefs, shuffle } from './draft.js';
 import { startBlockers, placeholderNotes } from './setup.js';
 import { createGame } from './game.js';
@@ -72,7 +76,7 @@ async function joinRoom(id, name) {
   const d = snap.data();
   if (d.memberUids.includes(me.uid)) return enter(id);
   if (d.status !== 'lobby') return toast('すでに開始されています');
-  if (d.memberUids.length >= 5) return toast('満員です（基本セットは最大5人）');
+  if (d.memberUids.length >= maxPlayers(d)) return toast(`満員です（最大${maxPlayers(d)}人）`);
   if (Object.values(d.members).some((m) => m.name === name)) return toast('同じ表示名がルーム内にあります');
   try {
     await update((cur) => ({
@@ -125,10 +129,11 @@ async function startGame() {
   try {
     const players = room.memberUids.map((uid) => ({ uid, faction: room.draft.factions[uid], mat: room.draft.mats[uid] }));
     const gid = [...crypto.getRandomValues(new Uint8Array(4))].map((x) => x.toString(16).padStart(2, '0')).join('');
-    const factoryIds = shuffle(FACTORY_CARDS.map((f) => f.id)).slice(0, players.length + 1);
+    const allowed = allowedCards(expOf(room));
+    const factoryIds = shuffle(allowed.fac).slice(0, players.length + 1);
     const bonusTileId = shuffle(BONUS_TILES.map((b) => b.id))[0];
     const st = createGame({ players, bonusTileId, factoryIds, gid });
-    await setDoc(doc(db, 'rooms', roomId, 'pub', 'deck'), initialDeck(players.map((p) => ({ uid: p.uid, combatCards: BASE_FACTIONS[p.faction].combatCards, objectives: BASE_MATS[p.mat].objectives }))));
+    await setDoc(doc(db, 'rooms', roomId, 'pub', 'deck'), initialDeck(players.map((p) => ({ uid: p.uid, combatCards: BASE_FACTIONS[p.faction].combatCards, objectives: BASE_MATS[p.mat].objectives })), allowed));
     await update(() => ({ status: 'playing', game: { turnUid: st.turnUid, json: JSON.stringify(st), over: false } }));
   } catch (e) { toast('開始できませんでした'); console.error(e); }
 }
@@ -142,7 +147,7 @@ function renderHome() {
     <div class="row"><label>表示名 <input id="nm" maxlength="12" value="${esc(defaultName())}" placeholder="例: アルバート"></label></div>
     <div class="row"><button id="mk">ルームを作る</button></div>
     <div class="row"><input id="cd" maxlength="8" placeholder="ルームコード" autocapitalize="characters" value="${esc(roomId || '')}"><button class="ghost" id="jn">参加する</button></div>
-    <p class="mute">基本セット・2〜5人。招待はルームコードを共有してください。${TEST_MODE ? '<br><b>テストモード: このタブは独立したプレイヤーです。</b>' : ''}</p>
+    <p class="mute">基本セット・2〜5人（拡張ONで最大6人）。招待はルームコードを共有してください。${TEST_MODE ? '<br><b>テストモード: このタブは独立したプレイヤーです。</b>' : ''}</p>
   </div>`;
   const name = () => { const v = document.getElementById('nm').value.trim(); if (!v) { toast('表示名を入力してください'); return null; } if (!TEST_MODE) save(NAME_KEY, v); return v; };
   document.getElementById('mk').onclick = () => { const n = name(); if (n) createRoom(n).catch((e) => { toast('作成に失敗しました'); console.error(e); }); };
@@ -155,6 +160,16 @@ function members() {
      ${room.status.startsWith('draft') ? (room.submitted?.[u] ? '<span class="ok">提出済み</span>' : '<span class="mute">未提出</span>') : ''}</li>`).join('')}</ul>`;
 }
 
+const EXP_ITEMS = [
+  ['invaders', '彼方よりの侵攻：勘解由小路幕府（トガワ）を追加（最大6人）', '初期戦力・カード枚数は仮値。罠・渡河・水遁・浪人・忍びを実装。'],
+  ['promo', 'プロモ「さらなる戦場」（遭遇29-42・目的24-27・工場13-18）', '公式本文の照合が未完了のカードを含みます。'],
+  ['encounters', '予期せぬ遭遇（遭遇43-74）', '一部の選択肢は未実装です。'],
+];
+function expList() {
+  const e = expOf(room);
+  return EXP_ITEMS.map(([k, label, note]) => `<label class="chk"><input type="checkbox" data-exp="${k}" ${e[k] ? 'checked' : ''} ${isHost() ? '' : 'disabled'}> ${esc(label)}</label><div class="mute" style="margin:-4px 0 6px 24px">${esc(note)}</div>`).join('')
+    + '<div class="mute">アルビオン／風変わりな戦争／フェンリス襲来：準備中（今回は未対応）</div>';
+}
 function renderLobby() {
   const n = room.memberUids.length;
   $app.innerHTML = `
@@ -162,10 +177,12 @@ function renderLobby() {
     <div class="row">${isHost()
       ? `<button id="go" ${n < 1 ? 'disabled' : ''}>勢力ドラフトを始める</button><span class="mute">1人でも開始できます（テスト用）</span>`
       : '<span class="mute">ホストの開始を待っています…</span>'}
+    <div class="card"><h3>追加コンテンツ（ON/OFF）</h3>${expList()}</div>
     ${n < 2 ? `<p class="mute">1人しかいません。同じブラウザの別タブは同じプレイヤー扱いになるため、1人で試すときは下のボタンで「別プレイヤー用タブ」を開いてください。</p>
       <button class="ghost" id="ot">別プレイヤー用タブを開く（テスト用）</button>` : ''}
       <button class="ghost" id="lv">退出</button></div></div>`;
   document.getElementById('lv').onclick = leave;
+  document.querySelectorAll('[data-exp]').forEach((el) => { el.onchange = () => update((d) => ({ settings: { ...d.settings, exp: { ...expOf(d), [el.dataset.exp]: el.checked } } })).catch((e) => { toast('変更できません'); console.error(e); }); });
   const ot = document.getElementById('ot'); if (ot) ot.onclick = () => window.open(testTabUrl(), '_blank');
   if (isHost()) document.getElementById('go').onclick = () =>
     update(() => ({ status: 'draft_faction', submitted: {}, draft: {} })).catch((e) => { toast('開始できません'); console.error(e); });
@@ -173,7 +190,7 @@ function renderLobby() {
 
 function renderDraft(kind) {
   const isFaction = kind === 'faction';
-  const cands = Object.keys(isFaction ? BASE_FACTIONS : BASE_MATS);
+  const cands = isFaction ? factionIds(room) : Object.keys(BASE_MATS);
   const label = (id) => (isFaction ? BASE_FACTIONS[id].name : BASE_MATS[id].name);
   const legal = (uid, c) => (isFaction ? true : isLegalCombo(room.draft.factions[uid], c));
   const mine = room.submitted?.[me.uid];

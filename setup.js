@@ -5,7 +5,7 @@ import { shuffle, cryptoRng } from './draft.js';
 export function startBlockers(playerCount, ledgers = LEDGERS, { allowPlaceholder = false } = {}) {
   const out = [];
   if (playerCount < PLAYER_RANGE.min || playerCount > PLAYER_RANGE.max) {
-    out.push(`基本セットは${PLAYER_RANGE.min}〜${PLAYER_RANGE.max}人用です`);
+    out.push(`対応人数は${PLAYER_RANGE.min}〜${PLAYER_RANGE.max}人です`);
   }
   for (const [k, l] of Object.entries(ledgers)) {
     if (l.verified !== true && !allowPlaceholder) out.push(`カード/盤面データ未確認: ${l.label}（${l.entered}/${l.expected}）`);

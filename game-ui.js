@@ -10,7 +10,9 @@ import {
 import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './cards.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const COLORS = ['#d9534f', '#4a90d9', '#e0b43a', '#5cb85c', '#b36bd1', '#e9843b', '#2bb5a8'];
+const FACTION_COLOR = { rusviet: '#d62d2d', saxony: '#1c1c1f', nordic: '#2f6fd6', crimea: '#f0c419', polania: '#f2f2f2', togawa: '#8e44c9', albion: '#2e9e4f' };
+const colorFor = (st, uid) => FACTION_COLOR[st.players[uid]?.faction] || '#888';
+const inkOn = (c) => (c === '#f2f2f2' || c === '#f0c419' ? '#111' : '#fff');
 const TERR = {
   mountain: ['#8d8d93', '山'], farm: ['#d6c26a', '農'], tundra: ['#9fb9c8', '油'], forest: ['#4f7d41', '森'],
   village: ['#c98f5e', '村'], lake: ['#3f70b3', '湖'], factory: ['#80608f', '工場'], home: ['#5a5148', '本'],
@@ -73,7 +75,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
   }
   function boardSVG(ctx) {
     const { st, me } = ctx; ctx_names = ctx.names;
-    const colorOf = (uid) => COLORS[st.order.indexOf(uid)] || '#888';
+    const colorOf = (uid) => colorFor(st, uid);
     const tg = new Set(ui.targets.map((t) => t.to));
     let hexes = '', top = '';
     for (const id of MAP.ids) {
@@ -91,7 +93,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
       hexes += `<g class="hx" data-hex="${id}" transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">
         ${dim}${shape}${rIcon}${ps ? '<text y="8" text-anchor="middle" class="stp">✔</text>' : ''}${isT ? `<text y="6" text-anchor="middle" class="stp">${ui.targets.find((t) => t.to === id)?.steps ?? ''}</text>` : ''}
         ${hs.enc ? `<circle cx="18" cy="-21" r="8" fill="#e8c14a" stroke="#222"><title>遭遇トークン</title></circle><text x="18" y="-17.5" class="eb">!</text>` : ''}
-        ${structMark(st, hs, colorOf, ctx)}${trapMark(st, id, colorOf, ctx)}
+        ${structMark(st, hs, colorOf, ctx)}${trapMark(st, id, colorOf, ctx)}${flagMark(st, id, colorOf, ctx)}
         ${resChips(hs, 0, 0)}
         </g>`;
       top += `<g transform="translate(${X.toFixed(1)} ${Y.toFixed(1)}) scale(${K.toFixed(4)})">${unitMarks(st, id, 0, 0, colorOf, me)}</g>`;
@@ -102,6 +104,11 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (!hs.structure) return '';
     const c = colorOf(hs.structure.owner), n = STRUCT_NAMES[hs.structure.type];
     return `<g class="struct"><title>${n}（${esc(ctx.names(hs.structure.owner))}）</title><circle cx="-18" cy="-21" r="10" fill="${c}" stroke="#fff" stroke-width="2"/><image href="${hs.structure.type}.png" x="-25" y="-28" width="14" height="14"/></g>`;
+  }
+  function flagMark(st, id, colorOf, ctx) {
+    const f = (st.flagHexes || []).find((x) => x.hex === id);
+    if (!f) return '';
+    return `<g class="trap"><title>旗（${esc(ctx.names(f.owner))}）</title><path d="M-27 14 L-27 -10 L-10 -4 L-27 2" fill="${colorOf(f.owner)}" stroke="#fff" stroke-width="1.8"/><line x1="-27" y1="-12" x2="-27" y2="16" stroke="#ddd" stroke-width="2"/></g>`;
   }
   function trapMark(st, id, colorOf, ctx) {
     const tr = (st.traps || []).find((x) => x.hex === id);
@@ -132,15 +139,16 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const dot = (e, x, y, count) => {
       const c = colorOf(e.uid), mine = e.uid === me, on = mine && ui.selUnit === e.unit;
       const data = mine && e.unit ? `data-unit="${e.unit}" class="unit"` : '';
-      const ring = on ? `<circle cx="${x}" cy="${y}" r="13" fill="none" stroke="#00f0ff" stroke-width="3"/>` : '';
+      const art = (e.shape === 'm' && UNIT_ART.mech.includes(st.players[e.uid].faction)) || (e.shape === 'c' && UNIT_ART.char.includes(st.players[e.uid].faction));
+      const ring = on ? `<circle cx="${x}" cy="${y}" r="${art ? 22 : 13}" fill="none" stroke="#00f0ff" stroke-width="3"/>` : '';
       const t = `<title>${esc(ctx_names(e.uid))}の${e.name}${count > 1 ? '×' + count : ''}</title>`;
       const txt = count > 1 ? `×${count}` : e.label;
       const fac = st.players[e.uid].faction;
-      if (e.shape === 'm' && UNIT_ART.mech.includes(fac)) return `${ring}<circle cx="${x}" cy="${y}" r="19" fill="${c}" stroke="#fff" stroke-width="2.5"/><image href="mech_${fac}.png" x="${x - 17}" y="${y - 17}" width="34" height="34" ${data}>${t}</image>${count > 1 ? `<text x="${x + 10}" y="${y + 14}" class="ub" style="font-size:11px">×${count}</text>` : ''}`;
-      if (e.shape === 'c' && UNIT_ART.char.includes(fac)) return `${ring}<circle cx="${x}" cy="${y}" r="19" fill="${c}" stroke="#fff" stroke-width="2.5"/><image href="char_${fac}.png" x="${x - 17}" y="${y - 17}" width="34" height="34" ${data}>${t}</image>`;
-      if (e.shape === 'm') return `${ring}<rect x="${x - 9}" y="${y - 9}" width="18" height="18" rx="3" fill="${c}" stroke="#fff" stroke-width="1.8" ${data}>${t}</rect><text x="${x}" y="${y + 3.5}" class="ub">${txt}</text>`;
-      if (e.shape === 'c') return `${ring}<circle cx="${x}" cy="${y}" r="9.5" fill="${c}" stroke="#fff" stroke-width="1.8" ${data}>${t}</circle><text x="${x}" y="${y + 3.5}" class="ub">${txt}</text>`;
-      return `${ring}<circle cx="${x}" cy="${y}" r="${count > 1 ? 9 : 6.5}" fill="${c}" stroke="#fff" stroke-width="1.8" ${data}>${t}</circle>${count > 1 ? `<text x="${x}" y="${y + 3.5}" class="ub">×${count}</text>` : ''}`;
+      if (e.shape === 'm' && UNIT_ART.mech.includes(fac)) return `${ring}<image href="mech_${fac}.png" x="${x - 19}" y="${y - 19}" width="38" height="38" style="filter:drop-shadow(0 1px 2px #000)" ${data}>${t}</image>${count > 1 ? `<text x="${x + 10}" y="${y + 14}" class="ub" style="font-size:11px">×${count}</text>` : ''}`;
+      if (e.shape === 'c' && UNIT_ART.char.includes(fac)) return `${ring}<image href="char_${fac}.png" x="${x - 19}" y="${y - 19}" width="38" height="38" style="filter:drop-shadow(0 1px 2px #000)" ${data}>${t}</image>`;
+      if (e.shape === 'm') return `${ring}<rect x="${x - 9}" y="${y - 9}" width="18" height="18" rx="3" fill="${c}" stroke="${c === '#f2f2f2' ? '#444' : '#fff'}" stroke-width="1.8" ${data}>${t}</rect><text x="${x}" y="${y + 3.5}" class="ub" style="fill:${inkOn(c)}">${txt}</text>`;
+      if (e.shape === 'c') return `${ring}<circle cx="${x}" cy="${y}" r="9.5" fill="${c}" stroke="${c === '#f2f2f2' ? '#444' : '#fff'}" stroke-width="1.8" ${data}>${t}</circle><text x="${x}" y="${y + 3.5}" class="ub" style="fill:${inkOn(c)}">${txt}</text>`;
+      return `${ring}<circle cx="${x}" cy="${y}" r="${count > 1 ? 9 : 6.5}" fill="${c}" stroke="${c === '#f2f2f2' ? '#444' : '#fff'}" stroke-width="1.8" ${data}>${t}</circle>${count > 1 ? `<text x="${x}" y="${y + 3.5}" class="ub" style="fill:${inkOn(c)}">×${count}</text>` : ''}`;
     };
     let out = '';
     if (list.length <= 4) {
@@ -162,7 +170,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     const ph = st.turn.phase, pd = st.pending;
     const cur = pd?.type === 'combat' ? 1 : pd ? 2 : { section: 0, top: 1, moving: 1, bottom: 2, end: 3 }[ph] ?? 0;
     const S = ['① セクション選択', '② 上段アクション', '③ 下段アクション', '④ ターン終了'];
-    return `<div class="steps">${S.map((x, i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}">${x}</span>`).join('')}${pd ? `<span class="pend">${{ combat: '戦闘中', trap: '罠の設置', encounter: '遭遇', factory: '工場カード選択', free: '無料効果' }[pd.type] || ''}</span>` : ''}</div>`;
+    return `<div class="steps">${S.map((x, i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}">${x}</span>`).join('')}${pd ? `<span class="pend">${{ combat: '戦闘中', trap: '罠の設置', flag: '旗の設置', encounter: '遭遇', factory: '工場カード選択', free: '無料効果' }[pd.type] || ''}</span>` : ''}</div>`;
   }
 
   // ---------------------------------------------------------------- パネル
@@ -171,7 +179,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (s === 'factory') return `工場／移動（${esc(byId(FACTORY_CARDS, p.factory)?.name || '')}）`;
     return `${TOP_NAMES[topOf(p.mat, s)]}／${BOTTOM_NAMES[BOTTOM_ORDER[s]]}`;
   };
-  const resSel = (key, val) => `<select data-bind="${key}">${['oil', 'metal', 'wood', 'food'].map((r) => `<option value="${r}" ${r === val ? 'selected' : ''}>${RES_NAMES[r]}</option>`).join('')}</select>`;
+  const resSel = (key, val) => `<span class="rsel">${['oil', 'metal', 'wood', 'food'].map((r) => `<button type="button" class="rbtn ${r === val ? 'on' : ''}" data-act="resset" data-v="${key}|${r}" title="${RES_NAMES[r]}"><img src="${r}.png" alt="${RES_NAMES[r]}"></button>`).join('')}</span>`;
   const hexBtn = (label, key, cur) => `<button class="ghost sm" data-act="pick" data-v="${key}">${label}: ${cur ? esc(cur) : '選択'}</button>`;
 
   function topDoable(st, me, kind) {
@@ -188,6 +196,8 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
     if (st.pending?.type === 'combat') return combatPanel(ctx);
     if (!mine) return '';
     if (st.pending?.type === 'encounter') return encounterPanel(ctx);
+    if (st.pending?.type === 'flag') return `<div class="card"><h2>🚩 旗を設置（${esc(st.pending.hex)}）</h2><p class="mute">キャラクターのいる領土に旗を1つ置けます（残り${p.flags}個・動かせません）。終了時にその領土を支配していて、自分の本拠地に隣接していなければ、領土1つ分として数えます。</p>
+      <div class="row"><button data-act="flag" data-v="1">旗を置く</button><button class="ghost" data-act="flag" data-v="">置かない</button></div></div>`;
     if (st.pending?.type === 'trap') return `<div class="card"><h2>🪤 罠を設置（${esc(st.pending.hex)}）</h2><p class="mute">キャラクターのいる領土に罠を1つ置けます（置いた罠は動かせません）。武装中の罠は、終了時にあなたの支配領土になり、相手ユニットが入ると移動が止まってペナルティを与えます。</p>
       <div class="row">${p.traps.map((x) => `<button data-act="trap" data-v="${x}">${TRAP_PENALTIES[x]}の罠</button>`).join('')}<button class="ghost" data-act="trap" data-v="">置かない</button></div></div>`;
     if (st.pending?.type === 'free') return freePanel(ctx);
@@ -363,8 +373,8 @@ const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enl
   function comparePanel(ctx) {
     const { st } = ctx;
     const rows = [[ICO.pop, (p) => p.pop, 18], [ICO.power, (p) => p.power, 16], [ICO.star, (p) => p.stars.length, 6], [ICO.coins, (p) => p.coins, Math.max(20, ...Object.values(st.players).map((p) => p.coins))]];
-    return `<div class="card"><h2>プレイヤー比較</h2>${st.order.map((u, i) => `<span class="legend">${FACE(st.players[u].faction, 22)}<i style="background:${COLORS[i]}"></i>${nm(ctx, u)}（${BASE_FACTIONS[st.players[u].faction].name}）</span>`).join('')}
-      ${rows.map(([lab, f, mx]) => `<div class="cmp"><b class="cl">${lab}</b><div class="track ${lab === ICO.pop ? 'poptrack' : ''}">${lab === ICO.pop ? '<div class="tiers"><span style="width:36.1%">〜6：領土×2 星×3 資源×1</span><span style="width:33.3%">7〜12：領土×3 星×4 資源×2</span><span style="flex:1">13〜：領土×4 星×5 資源×3</span></div>' : ''}${[...Array(mx + 1).keys()].filter((i) => i % (mx > 20 ? 5 : 2) === 0).map((i) => `<s style="left:${(i / mx) * 100}%"><u>${i}</u></s>`).join('')}${st.order.map((u, i) => { const v = f(st.players[u]); return `<span class="pin" style="left:${Math.min(100, (v / mx) * 100)}%;top:${4 + i * 2}px;border-color:${COLORS[i]};background:${COLORS[i]}" title="${esc(nm(ctx, u))}：${v}"><em>${v}</em></span>`; }).join('')}<small class="mx">最大${mx}</small></div>
+    return `<div class="card"><h2>プレイヤー比較</h2>${st.order.map((u, i) => `<span class="legend">${FACE(st.players[u].faction, 22)}<i style="background:${colorFor(st, u)};border:1px solid #888"></i>${nm(ctx, u)}（${BASE_FACTIONS[st.players[u].faction].name}）</span>`).join('')}
+      ${rows.map(([lab, f, mx]) => `<div class="cmp"><b class="cl">${lab}</b><div class="track ${lab === ICO.pop ? 'poptrack' : ''}">${lab === ICO.pop ? '<div class="tiers"><span style="width:36.1%">〜6：領土×2 星×3 資源×1</span><span style="width:33.3%">7〜12：領土×3 星×4 資源×2</span><span style="flex:1">13〜：領土×4 星×5 資源×3</span></div>' : ''}${[...Array(mx + 1).keys()].filter((i) => i % (mx > 20 ? 5 : 2) === 0).map((i) => `<s style="left:${(i / mx) * 100}%"><u>${i}</u></s>`).join('')}${st.order.map((u, i) => { const v = f(st.players[u]); return `<span class="pin" data-ink="${inkOn(colorFor(st, u))}" style="left:${Math.min(100, (v / mx) * 100)}%;top:${4 + i * 2}px;border-color:#fff;background:${colorFor(st, u)}" title="${esc(nm(ctx, u))}：${v}"><em>${v}</em></span>`; }).join('')}<small class="mx">最大${mx}</small></div>
       </div>`).join('')}</div>`;
   }
 
@@ -642,7 +652,9 @@ const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enl
       case 'bolster-power': act({ t: 'top', kind: 'bolster', mode: 'power' }); break;
       case 'bolster-card': act({ t: 'top', kind: 'bolster', mode: 'card' }); break;
       case 'trade-pop': act({ t: 'top', kind: 'trade', mode: 'pop' }); break;
+      case 'flag': act(v ? { t: 'flag' } : { t: 'flag', skip: true }); break;
       case 'trap': act(v ? { t: 'trap', penalty: v } : { t: 'trap', skip: true }); break;
+      case 'resset': { const [k, r] = v.split('|'); setPath(k, r); render(); break; }
       case 'convtoggle': if (st.turnUid !== me) return toast('資源交換は自分の手番中だけです'); ui.convOpen = !ui.convOpen; render(); break;
       case 'convert':
         if (!ui.conv.hex) return toast('置く領土を選んでください');
@@ -735,13 +747,15 @@ const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enl
     d.innerHTML = `<svg viewBox="0 0 1024 1024">${inner}</svg>`;
     document.body.append(d); setTimeout(() => d.remove(), ms);
   }
-  const ring = (x, y, color, delay = 0, big = 90) => `<circle cx="${x}" cy="${y}" r="10" fill="none" stroke="${color}" stroke-width="8" opacity="0"><animate attributeName="r" from="10" to="${big}" begin="${delay}s" dur="0.9s" fill="freeze"/><animate attributeName="opacity" values="0;1;0" keyTimes="0;.15;1" begin="${delay}s" dur="0.9s" fill="freeze"/><animate attributeName="stroke-width" from="14" to="1" begin="${delay}s" dur="0.9s" fill="freeze"/></circle>`;
-  const pop = (x, y, ch, size = 70) => `<text x="${x}" y="${y}" font-size="${size}" text-anchor="middle" opacity="0"><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.15;.7;1" dur="1.4s" fill="freeze"/><animateTransform attributeName="transform" type="translate" values="0 -70;0 0;0 -12;0 -40" keyTimes="0;.25;.5;1" dur="1.4s" fill="freeze"/>${ch}</text>`;
-  function starBurst(who, faction) {
+  const ring = (x, y, color, delay = 0, big = 90) => `<circle cx="${x}" cy="${y}" r="10" fill="none" stroke="${color}" stroke-width="5" opacity="0"><animate attributeName="r" from="10" to="${big}" begin="${delay}s" dur="0.9s" fill="freeze"/><animate attributeName="opacity" values="0;1;0" keyTimes="0;.15;1" begin="${delay}s" dur="0.9s" fill="freeze"/><animate attributeName="stroke-width" from="14" to="1" begin="${delay}s" dur="0.9s" fill="freeze"/></circle>`;
+  // ディーゼルパンク調：蒸気（灰色の煙）と火花（橙の粒）、真鍮・錆色のリング
+  const smoke = (x, y) => Array.from({ length: 5 }, (_, i) => `<circle cx="${x + (i - 2) * 14}" cy="${y}" r="10" fill="#9aa0a4" opacity="0"><animate attributeName="opacity" values="0;.55;0" dur="1.5s" begin="${i * 0.08}s" fill="freeze"/><animate attributeName="r" from="8" to="34" dur="1.5s" begin="${i * 0.08}s" fill="freeze"/><animate attributeName="cy" from="${y}" to="${y - 70 - i * 6}" dur="1.5s" begin="${i * 0.08}s" fill="freeze"/></circle>`).join('');
+  const sparks = (x, y, n = 10) => Array.from({ length: n }, (_, i) => { const a = (i / n) * 6.283 + Math.random() * 0.5, r = 50 + Math.random() * 50; return `<circle cx="${x}" cy="${y}" r="3" fill="#ffb23e" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="0.8s" fill="freeze"/><animate attributeName="cx" from="${x}" to="${x + Math.cos(a) * r}" dur="0.8s" fill="freeze"/><animate attributeName="cy" from="${y}" to="${y + Math.sin(a) * r + 14}" dur="0.8s" fill="freeze"/></circle>`; }).join('');
+  function starBurst(who) {
     const d = document.createElement('div'); d.className = 'starburst';
-    const conf = Array.from({ length: 28 }, (_, i) => { const a = (i / 28) * 6.283, r = 160 + Math.random() * 200; return `<i style="--dx:${Math.cos(a) * r}px;--dy:${Math.sin(a) * r}px;--c:hsl(${Math.round(Math.random() * 360)} 90% 60%);animation-delay:${(Math.random() * 0.2).toFixed(2)}s"></i>`; }).join('');
-    d.innerHTML = `${conf}<img src="star.png" alt=""><b>⭐ 星を獲得！</b><span>${esc(who)}</span>`;
-    document.body.append(d); setTimeout(() => d.remove(), 2600);
+    const emb = Array.from({ length: 16 }, (_, i) => { const a = (i / 16) * 6.283, r = 120 + Math.random() * 130; return `<i style="--dx:${Math.cos(a) * r}px;--dy:${Math.sin(a) * r + 40}px;animation-delay:${(Math.random() * 0.15).toFixed(2)}s"></i>`; }).join('');
+    d.innerHTML = `${emb}<div class="plate"><img src="star.png" alt=""><div><b>星を獲得</b><span>${esc(who)}</span></div></div>`;
+    document.body.append(d); setTimeout(() => d.remove(), 2300);
   }
   function fx(ctx) {
     const { st } = ctx, cur = snapOf(st), prev = ui.snap;
@@ -749,17 +763,17 @@ const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enl
     if (!prev || prev.gid !== cur.gid) return;
     const px = (h) => { const hx = MAP.hexes[h]; return hx ? (hx.px || PX(hx.q, hx.r)) : [512, 512]; };
     let inner = '';
-    for (const [u, n] of Object.entries(cur.stars)) if (n > (prev.stars[u] || 0)) { starBurst(ctx.names(u), st.players[u].faction); sfx('star'); }
+    for (const [u, n] of Object.entries(cur.stars)) if (n > (prev.stars[u] || 0)) { starBurst(ctx.names(u)); sfx('star'); }
     for (const [u, hs] of Object.entries(cur.mechs)) if (hs.length > (prev.mechs[u] || []).length) {
       const h = hs.find((x) => !(prev.mechs[u] || []).includes(x)) ?? hs[hs.length - 1], [x, y] = px(h);
-      inner += ring(x, y, '#19d3ff', 0, 110) + ring(x, y, '#ffffff', 0.15, 80) + pop(x, y - 10, '⚙️', 84); sfx('deploy');
+      inner += ring(x, y, '#c9a24a', 0, 90) + sparks(x, y, 12) + smoke(x, y); sfx('deploy');
     }
-    for (const [h, ty] of Object.entries(cur.structs)) if (!prev.structs[h]) { const [x, y] = px(h); inner += ring(x, y, '#ffb347', 0, 100) + pop(x, y - 10, { monument: '🗿', mill: '🌾', mine: '⛏️', armory: '🛡️' }[ty] || '🏗️', 76); sfx('build'); }
+    for (const [h, ty] of Object.entries(cur.structs)) if (!prev.structs[h]) { const [x, y] = px(h); inner += ring(x, y, '#b5532e', 0, 80) + sparks(x, y, 8) + smoke(x, y + 10); sfx('build'); }
     if (cur.combat && cur.combat !== prev.combat) {
-      const [x, y] = px(st.lastCombat.hex); inner += ring(x, y, '#ff3b3b', 0, 120) + ring(x, y, '#ffd400', 0.12, 90) + pop(x, y, '⚔️', 90);
+      const [x, y] = px(st.lastCombat.hex); inner += ring(x, y, '#a83a2a', 0, 100) + sparks(x, y, 16);
       const bw = document.getElementById('boardwrap'); if (bw) { bw.classList.add('shake'); setTimeout(() => bw.classList.remove('shake'), 600); }
     }
-    if (cur.traps > prev.traps) { const tr = (st.traps || []).filter((x) => !x.armed).pop(); if (tr) { const [x, y] = px(tr.hex); inner += ring(x, y, '#b36bd1', 0, 100) + pop(x, y, '🪤', 76); } }
+    if (cur.traps > prev.traps) { const tr = (st.traps || []).filter((x) => !x.armed).pop(); if (tr) { const [x, y] = px(tr.hex); inner += ring(x, y, '#7d6a9a', 0, 80) + smoke(x, y); } }
     if (inner) overlay(inner);
   }
   let mdr = null;

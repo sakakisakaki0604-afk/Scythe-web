@@ -9,6 +9,7 @@ export const BASE_FACTIONS = {
   polania: { name: 'ポーラニア共和国', en: 'Polania', power: 2, combatCards: 2, ability: 'Meander', verified: 'doc' },
   rusviet: { name: 'ロスヴィエト連邦', en: 'Rusviet', power: 3, combatCards: 4, ability: 'Relentless', verified: 'doc' },
   // 拡張「彼方よりの侵攻」。初期戦力・戦闘カード枚数は資料に記載がなく【仮値】（公式値が分かったらここだけ直す）
+  albion:  { name: 'アルビオン氏族', en: 'Albion', power: 3, combatCards: 2, ability: 'Exalt', verified: 'placeholder', ext: 'invaders' },
   togawa:  { name: '勘解由小路幕府', en: 'Togawa', power: 3, combatCards: 3, ability: 'Maifuku', verified: 'placeholder', ext: 'invaders' },
 };
 
@@ -60,7 +61,7 @@ export const LEDGERS = {
   factory:    { label: '工場カード#1-18（付属画像の絵柄からの暫定解釈）', expected: 18, entered: 18, verified: false },
 };
 
-export const PLAYER_RANGE = { min: 1, max: 6 }; // 基本5＋トガワ
+export const PLAYER_RANGE = { min: 1, max: 7 }; // 基本5＋トガワ
 export const factoryCandidateCount = (players) => players + 1;
 
 // ---- ゲーム進行用の追加定義 ----
@@ -75,14 +76,15 @@ export const MECH_SLOTS = {
   polania: ['riverwalk', 'submerge', 'camaraderie', 'speed'],
   rusviet: ['riverwalk', 'township', 'peoples_army', 'speed'],
   togawa:  ['toka', 'suiton', 'ronin', 'shinobi'],
+  albion:  ['burrow', 'sword', 'shield', 'rally'],
 };
-export const IMPLEMENTED_ABILITIES = ['speed', 'riverwalk', 'camaraderie', 'seaworthy', 'submerge', 'artillery', 'wayfare', 'underpass', 'disarm', 'township', 'peoples_army', 'toka', 'suiton', 'ronin', 'shinobi'];
+export const IMPLEMENTED_ABILITIES = ['burrow', 'sword', 'shield', 'rally', 'speed', 'riverwalk', 'camaraderie', 'seaworthy', 'submerge', 'artillery', 'wayfare', 'underpass', 'disarm', 'township', 'peoples_army', 'toka', 'suiton', 'ronin', 'shinobi'];
 export const RIVERWALK = {
   nordic: ['forest', 'mountain'], crimea: ['farm', 'tundra'], saxony: ['forest', 'mountain'],
   polania: ['village', 'mountain'], rusviet: ['farm', 'village'],
 };
 export const ABILITY_NAMES = {
-  toka: '渡河', suiton: '水遁', ronin: '浪人', shinobi: '忍び', riverwalk: 'リバーウォーク', speed: 'スピード', camaraderie: '連帯', seaworthy: '航海', artillery: '砲撃',
+  burrow: '潜伏', sword: '剣', shield: '盾', rally: '集合', toka: '渡河', suiton: '水遁', ronin: '浪人', shinobi: '忍び', riverwalk: 'リバーウォーク', speed: 'スピード', camaraderie: '連帯', seaworthy: '航海', artillery: '砲撃',
   wayfare: '道中', scout: '偵察', underpass: '地下道', disarm: '武装解除', submerge: '潜行', township: '町', peoples_army: '人民軍',
 };
 
@@ -108,6 +110,7 @@ export const PASSIVE = {
   saxony: ['ドミネート', '戦闘勝利の星に上限がなく、目的カード2枚とも達成して星を得られる。'],
   polania: ['メアンダー', '遭遇カード1枚で最大2つの選択肢を順に解決できる。1つ目の利益を2つ目の費用に使える。'],
   rusviet: ['リレントレス', '前の手番と同じ行動マット区画を続けて選べる。'],
+  albion: ['昇揚（旗）', 'キャラクターの移動後（戦闘・遭遇の解決後）、いる領土に旗を1つ置ける（4つまで・動かせない）。終了時、その領土を支配していて自分の本拠地に隣接していなければ、旗1つにつき領土1つ分として数える。'],
   togawa: ['埋伏（罠）', 'キャラクターの移動後（戦闘・遭遇の解決後）、いる領土に罠トークンを1つ置ける（相手の建物がある領土にも可）。武装中の罠は終了時にその領土を支配扱い。相手ユニットが入ると移動が止まり、罠のペナルティを受けて罠は武装解除される。'],
 };
 export const TRAP_PENALTIES = { pop: '支持-2', power: '戦力-3', coins: 'コイン-4', cards: '戦闘カード2枚を捨てる' };
@@ -122,6 +125,10 @@ export const ABILITY_TEXT = {
   underpass: () => '自分が支配する山岳とトンネルを接続先として扱う。',
   disarm: () => '自分の鉱山／トンネルでの戦闘開始時、相手の戦力を2下げる。',
   submerge: () => 'キャラクター／メックは湖へ出入りでき、湖から湖へも移動できる。',
+  burrow: () => '【潜伏】キャラクター／メックは、トンネル領土（自分の鉱山の領土を含む）へ出入りするとき、隣接する川を越えられる。',
+  sword: () => '【剣】攻撃側のとき、戦闘開始時に防御側の戦力を2減らす（1戦闘1回）。',
+  shield: () => '【盾】防御側のとき、戦闘開始時に自分の戦力+2（1戦闘1回）。',
+  rally: () => '【集合】移動アクションで、キャラクター／メックを自分のワーカーか旗がある任意の領土へ距離無視で移動できる。',
   toka: () => '【渡河】1回の移動アクション中、キャラクターかメック1体が川を1本越えられる。',
   suiton: () => '【水遁】キャラクター／メックは湖へ出入りできる（湖では建設・配備不可）。湖の戦闘で戦闘カード+1枚は【未実装】。',
   ronin: () => '【浪人】戦闘に参加する自分のユニットがキャラクター／メック1体だけ（ワーカー無し）なら、戦闘前に戦力+2。',

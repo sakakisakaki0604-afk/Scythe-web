@@ -178,16 +178,6 @@ main:has(.game){padding:4px 6px}
 
 /* v14 演出 */
 .fxwrap{position:fixed;pointer-events:none;z-index:60}.fxwrap svg{width:100%;height:100%}
-.shake{animation:shk .55s}@keyframes shk{0%,100%{transform:none}15%{transform:translate(-7px,3px)}35%{transform:translate(8px,-4px)}55%{transform:translate(-5px,-3px)}75%{transform:translate(4px,4px)}}
-.starburst{position:fixed;left:50%;top:42%;width:0;height:0;z-index:80;pointer-events:none;display:flex;flex-direction:column;align-items:center;animation:sbout 2.5s forwards}
-.starburst img{position:absolute;width:190px;height:190px;left:-95px;top:-95px;animation:sbstar 2.2s ease-out forwards;filter:drop-shadow(0 0 25px #ffe36b)}
-.starburst b{position:absolute;top:110px;white-space:nowrap;font-size:40px;color:#fff3b0;text-shadow:0 0 12px #f7a600,0 3px 0 #7a4b00;animation:sbtxt 2.2s forwards}
-.starburst span{position:absolute;top:165px;white-space:nowrap;font-size:22px;color:#fff;text-shadow:0 2px 6px #000;animation:sbtxt 2.2s forwards}
-.starburst i{position:absolute;width:12px;height:12px;border-radius:3px;background:var(--c);animation:sbconf 1.6s ease-out forwards}
-@keyframes sbstar{0%{transform:scale(.1) rotate(-200deg);opacity:0}25%{transform:scale(1.35) rotate(15deg);opacity:1}40%{transform:scale(1) rotate(0)}85%{transform:scale(1.08);opacity:1}100%{transform:scale(1.6);opacity:0}}
-@keyframes sbtxt{0%,15%{opacity:0;transform:translateY(20px)}30%,85%{opacity:1;transform:none}100%{opacity:0}}
-@keyframes sbconf{0%{transform:translate(0,0) scale(1) rotate(0);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.4) rotate(540deg);opacity:0}}
-@keyframes sbout{0%,90%{opacity:1}100%{opacity:0}}
 .turnbar.mine{animation:myturn 1.6s ease-out 1}@keyframes myturn{0%{box-shadow:0 0 0 0 #ffd400}40%{box-shadow:0 0 0 10px #ffd40088}100%{box-shadow:0 0 0 0 #ffd40000}}
 .mats2 .amat{display:flex;flex-direction:column}.mats2 .amat .acols{flex:1;height:auto;min-height:0}
 /* v15 支持の段階表示 */
@@ -196,3 +186,27 @@ main:has(.game){padding:4px 6px}
 .tiers span{padding:1px 3px;border-left:1px solid #fff5;overflow:hidden;white-space:nowrap;text-overflow:clip}.tiers span:first-child{border:0}
 .poptrack .pin{top:3px!important}
 .gbar.popbar{background:linear-gradient(90deg,#6b5530 0 36.1%,#5d7a30 36.1% 69.4%,#2f8a5f 69.4%)}
+/* v16 */
+body{-webkit-user-select:none;user-select:none}
+input,textarea,select,.code{-webkit-user-select:text;user-select:text}
+img,svg{-webkit-user-drag:none}
+.pin[data-ink="#111"] em{color:#111;text-shadow:none}
+.rsel{display:inline-flex;gap:4px;vertical-align:middle}
+.rbtn{padding:3px;background:#2a2217;border:2px solid #6b5a3a;border-radius:8px;cursor:pointer;line-height:0}
+.rbtn img{width:30px;height:30px}
+.rbtn.on{border-color:#ffd24a;background:#6a4f12;box-shadow:0 0 0 2px #ffd24a88}
+
+/* v16 ディーゼルパンク演出 */
+.shake{animation:shk .4s}@keyframes shk{0%,100%{transform:none}25%{transform:translate(-3px,1px)}50%{transform:translate(3px,-2px)}75%{transform:translate(-2px,-1px)}}
+.starburst{position:fixed;left:50%;top:40%;width:0;height:0;z-index:80;pointer-events:none;animation:sbout 2.2s forwards}
+.starburst .plate{position:absolute;left:-190px;top:-48px;width:380px;display:flex;align-items:center;gap:14px;padding:10px 18px;background:linear-gradient(#4a3a22,#2a2014);border:3px solid #b08d3c;border-radius:6px;box-shadow:0 0 0 2px #1b140a,inset 0 0 0 2px #6a5530,0 8px 30px #000c;animation:sbplate 2.1s ease-out forwards}
+.starburst .plate::before,.starburst .plate::after{content:"";position:absolute;top:50%;width:8px;height:8px;border-radius:50%;background:radial-gradient(#d8c28a,#6a5530);transform:translateY(-50%)}
+.starburst .plate::before{left:6px}.starburst .plate::after{right:6px}
+.starburst img{width:64px;height:64px;animation:sbstar 2.1s ease-out forwards}
+.starburst b{display:block;font-size:28px;letter-spacing:.15em;color:#e8cf8a;text-shadow:0 2px 0 #000}
+.starburst span{display:block;font-size:16px;color:#cdbf9f}
+.starburst i{position:absolute;width:5px;height:5px;border-radius:50%;background:#ffa733;animation:sbemb 1.3s ease-out forwards}
+@keyframes sbplate{0%{transform:translateY(-30px) scale(.9);opacity:0}15%{transform:none;opacity:1}85%{opacity:1}100%{opacity:0}}
+@keyframes sbstar{0%{transform:rotate(-40deg) scale(.6)}30%{transform:rotate(0) scale(1.1)}100%{transform:scale(1)}}
+@keyframes sbemb{0%{transform:translate(0,0);opacity:0}15%{opacity:1}100%{transform:translate(var(--dx),var(--dy));opacity:0}}
+@keyframes sbout{0%,92%{opacity:1}100%{opacity:0}}

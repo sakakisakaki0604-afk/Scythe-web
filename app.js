@@ -161,14 +161,14 @@ function members() {
 }
 
 const EXP_ITEMS = [
-  ['invaders', '彼方よりの侵攻：勘解由小路幕府（トガワ）を追加（最大6人）', '初期戦力・カード枚数は仮値。罠・渡河・水遁・浪人・忍びを実装。'],
+  ['invaders', '彼方よりの侵攻：アルビオン氏族・勘解由小路幕府（トガワ）を追加（最大7人）', '初期戦力・カード枚数は仮値。旗/罠・各メック能力を実装。'],
   ['promo', 'プロモ「さらなる戦場」（遭遇29-42・目的24-27・工場13-18）', '公式本文の照合が未完了のカードを含みます。'],
   ['encounters', '予期せぬ遭遇（遭遇43-74）', '一部の選択肢は未実装です。'],
 ];
 function expList() {
   const e = expOf(room);
   return EXP_ITEMS.map(([k, label, note]) => `<label class="chk"><input type="checkbox" data-exp="${k}" ${e[k] ? 'checked' : ''} ${isHost() ? '' : 'disabled'}> ${esc(label)}</label><div class="mute" style="margin:-4px 0 6px 24px">${esc(note)}</div>`).join('')
-    + '<div class="mute">アルビオン／風変わりな戦争／フェンリス襲来：準備中（今回は未対応）</div>';
+    + '<div class="mute">風変わりな戦争／フェンリス襲来：準備中（未対応）</div>';
 }
 function renderLobby() {
   const n = room.memberUids.length;

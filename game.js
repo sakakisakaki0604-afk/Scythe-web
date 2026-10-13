@@ -21,7 +21,7 @@ export function createGame({ players, bonusTileId, factoryIds, gid = 'g0' }) {
   const st = {
     v: 1, gid, order, turnUid: order[0], turnNo: 1, over: false, result: null,
     bonusTile: bonusTileId, factoryCandidates: [...factoryIds], log: [], hexes: {}, players: {},
-    turn: { phase: 'section' }, pending: null, traps: [],
+    turn: { phase: 'section' }, pending: null, traps: [], flagHexes: [],
   };
   for (const id of MAP.ids) st.hexes[id] = { res: {}, structure: null, enc: MAP.hexes[id].encounter };
   for (const { uid, faction, mat } of players) {
@@ -30,7 +30,7 @@ export function createGame({ players, bonusTileId, factoryIds, gid = 'g0' }) {
       faction, mat, power: f.power, pop: m.popularity, coins: m.coins, hand: f.combatCards, objs: m.objectives,
       section: null, last: null, char: MAP.homes[faction], mechs: [], workers: [...MAP.startAdj[faction]], matWorkers: 6,
       red: { upgrade: 0, deploy: 0, build: 0, enlist: 0 }, cubes: 0, structures: [], recruits: [],
-      stars: [], combatWins: 0, factory: null, traps: faction === 'togawa' ? ['pop', 'power', 'coins', 'cards'] : [], up: { move: 0, bolster: 0, trade: 0, produce: 0 },
+      stars: [], combatWins: 0, factory: null, traps: faction === 'togawa' ? ['pop', 'power', 'coins', 'cards'] : [], flags: faction === 'albion' ? 4 : 0, up: { move: 0, bolster: 0, trade: 0, produce: 0 },
     };
   }
   log(st, order[0], 'ゲーム開始');
@@ -164,6 +164,8 @@ export function moveTargets(st, uid, unit, stepsAllowed, opts = {}) {
   const maxSteps = stepsAllowed ?? (isWorker ? 1 : 1 + (hasAbility(st, uid, 'speed') ? 1 : 0) + (p.up?.move || 0));
   const rw = hasAbility(st, uid, 'riverwalk') ? RIVERWALK[p.faction] : [];
   const toka = !isWorker && !opts.noToka && hasAbility(st, uid, 'toka') && !st.turn?.move?.tokaUsed;
+  const burrow = !isWorker && hasAbility(st, uid, 'burrow');
+  const isTunnel = (h) => H(h).tunnel || p.structures.some((s) => s.type === 'mine' && s.hex === h);
   const suiton = !isWorker && ['suiton', 'seaworthy', 'submerge'].some((x) => hasAbility(st, uid, x));
   const seen = new Set([`${from}|0`]), best = new Map([[from, 0]]);
   const out = [];
@@ -180,7 +182,7 @@ export function moveTargets(st, uid, unit, stepsAllowed, opts = {}) {
         const viaTunnel = !H(cur).nb.includes(c);
         let nu = used;
         if (!viaTunnel && isRiver(cur, c)) {
-          const ok = (isWorker && p.faction === 'nordic') || rw.includes(ch.terrain);
+          const ok = (isWorker && p.faction === 'nordic') || rw.includes(ch.terrain) || (burrow && (isTunnel(cur) || isTunnel(c)));
           if (!ok) { if (toka && !used) nu = 1; else continue; }
         }
         if (seen.has(`${c}|${nu}`)) continue;
@@ -194,6 +196,10 @@ export function moveTargets(st, uid, unit, stepsAllowed, opts = {}) {
       }
     }
     frontier = next;
+  }
+  if (!isWorker && hasAbility(st, uid, 'rally')) { // 集合：自分のワーカーか旗のある領土へ
+    const tg = new Set([...p.workers, ...(st.flagHexes || []).filter((f) => f.owner === uid).map((f) => f.hex)]);
+    for (const h of tg) { if (h === from || best.has(h) || (H(h).terrain === 'lake' && !suiton)) continue; best.set(h, 1); out.push({ to: h, steps: 1 }); }
   }
   // 潜行：湖から別の湖へ／道中：本拠地へ距離無視で移動
   if (!isWorker && hasAbility(st, uid, 'submerge') && H(from).terrain === 'lake') {
@@ -307,6 +313,13 @@ export function apply(stIn, uid, action, rng = Math.random) {
     case 'encounter': {
       if (!st.pending || st.pending.type !== 'encounter' || !st.pending.cardId) fail('遭遇はありません');
       doEncounter(st, uid, a, ctx);
+      break;
+    }
+    case 'flag': {
+      if (!st.pending || st.pending.type !== 'flag') fail('旗を置く場面ではありません');
+      if (!a.skip) { p.flags--; st.flagHexes.push({ hex: st.pending.hex, owner: uid }); log(st, uid, '旗を設置'); }
+      st.pending = null;
+      settle(st, uid, ctx);
       break;
     }
     case 'trap': {
@@ -482,6 +495,8 @@ function finishMove(st, uid, ctx) {
     for (const u of [uid, cw.defender]) {
       const pl = st.players[u], op = st.players[other[u]];
       if (hasAbility(st, u, 'artillery') && pl.power >= 1 && op.power > 0) { pl.power -= 1; op.power = Math.max(0, op.power - 2); log(st, u, '砲撃：相手の戦力-2'); }
+      if (u === uid && hasAbility(st, u, 'sword') && op.power > 0) { op.power = Math.max(0, op.power - 2); log(st, u, '剣：相手の戦力-2'); }
+      if (u === cw.defender && hasAbility(st, u, 'shield')) { pl.power = Math.min(POWER_MAX, pl.power + 2); log(st, u, '盾：戦力+2'); }
       const stx = st.hexes[cw.hex].structure;
       if (hasAbility(st, u, 'disarm') && (H(cw.hex).tunnel || (stx?.type === 'mine' && stx.owner === u))) { op.power = Math.max(0, op.power - 2); log(st, u, '武装解除：相手の戦力-2'); }
     }
@@ -513,6 +528,12 @@ function settle(st, uid, ctx) {
     && !(st.traps || []).some((x) => x.hex === p.char)) {
     t.trapOffered = true;
     st.pending = { type: 'trap', hex: p.char };
+    return;
+  }
+  if (p.faction === 'albion' && t.charMoved && !t.flagOffered && p.flags > 0 && p.char !== homeOf(st, uid)
+    && !(st.flagHexes || []).some((x) => x.hex === p.char) && !(st.traps || []).some((x) => x.hex === p.char)) {
+    t.flagOffered = true;
+    st.pending = { type: 'flag', hex: p.char };
     return;
   }
   t.phase = t.afterMove === 'bottom' ? 'end' : 'bottom';
@@ -782,7 +803,8 @@ export function scoreOf(st, uid) {
   const p = st.players[uid];
   const tier = popTier(p.pop);
   const cs = controlled(st, uid);
-  const terr = cs.length + (cs.includes('0,0') ? 2 : 0);
+  const flagTerr = (st.flagHexes || []).filter((f) => f.owner === uid && controller(st, f.hex) === uid && !H(homeOf(st, uid)).nb.includes(f.hex)).length;
+  const terr = cs.length + (cs.includes('0,0') ? 2 : 0) + flagTerr;
   const rt = Object.values(resTotals(st, uid)).reduce((s, v) => s + v, 0);
   const tile = byId(BONUS_TILES, st.bonusTile);
   const bonusN = tile ? p.structures.filter((s) => tile.test(H(s.hex), MAP)).length : 0;

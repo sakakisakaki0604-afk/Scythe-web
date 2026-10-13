@@ -128,11 +128,16 @@ const losePop = (st, uid, n) => { const p = st.players[uid]; p.pop = Math.max(0,
 
 // ------------------------------------------------------------------ 移動
 const topo = (st, uid, hex) => {
-  // トンネル網: トンネル領土と自分の鉱山は互いに隣接
+  // トンネル網: トンネル領土と自分の鉱山は互いに隣接（地下道：自分が支配する山岳も接続）
   const p = st.players[uid];
-  const inNet = (h) => H(h).tunnel || p.structures.some((s) => s.type === 'mine' && s.hex === h);
-  if (!inNet(hex)) return [];
-  return MAP.ids.filter((h) => h !== hex && inNet(h));
+  const under = hasAbility(st, uid, 'underpass');
+  const inNet = (h) => H(h).tunnel || p.structures.some((s) => s.type === 'mine' && s.hex === h) || (under && H(h).terrain === 'mountain' && controller(st, h) === uid);
+  let out = inNet(hex) ? MAP.ids.filter((h) => h !== hex && inNet(h)) : [];
+  if (hasAbility(st, uid, 'township')) { // 町：自分が支配する村と工場は互いに隣接
+    const net = ['0,0', ...MAP.ids.filter((h) => H(h).terrain === 'village' && controller(st, h) === uid)];
+    if (net.includes(hex)) out = [...new Set([...out, ...net.filter((h) => h !== hex)])];
+  }
+  return out;
 };
 
 export function unitHex(st, uid, unit) {
@@ -159,7 +164,7 @@ export function moveTargets(st, uid, unit, stepsAllowed, opts = {}) {
   const maxSteps = stepsAllowed ?? (isWorker ? 1 : 1 + (hasAbility(st, uid, 'speed') ? 1 : 0) + (p.up?.move || 0));
   const rw = hasAbility(st, uid, 'riverwalk') ? RIVERWALK[p.faction] : [];
   const toka = !isWorker && !opts.noToka && hasAbility(st, uid, 'toka') && !st.turn?.move?.tokaUsed;
-  const suiton = !isWorker && hasAbility(st, uid, 'suiton');
+  const suiton = !isWorker && ['suiton', 'seaworthy', 'submerge'].some((x) => hasAbility(st, uid, x));
   const seen = new Set([`${from}|0`]), best = new Map([[from, 0]]);
   const out = [];
   let frontier = [[from, 0]];
@@ -189,6 +194,17 @@ export function moveTargets(st, uid, unit, stepsAllowed, opts = {}) {
       }
     }
     frontier = next;
+  }
+  // 潜行：湖から別の湖へ／道中：本拠地へ距離無視で移動
+  if (!isWorker && hasAbility(st, uid, 'submerge') && H(from).terrain === 'lake') {
+    for (const h of MAP.ids) if (h !== from && H(h).terrain === 'lake' && !best.has(h)) { best.set(h, 1); out.push({ to: h, steps: 1 }); }
+  }
+  if (!isWorker && hasAbility(st, uid, 'wayfare')) {
+    for (const h of MAP.ids) {
+      if (H(h).terrain !== 'home' || h === from || best.has(h)) continue;
+      if (H(h).home !== p.faction && Object.keys(unitsAt(st, h)).length) continue;
+      best.set(h, 1); out.push({ to: h, steps: 1 });
+    }
   }
   // 忍び：罠トークンのある領土へ距離無視で移動
   if (!isWorker && hasAbility(st, uid, 'shinobi')) {
@@ -462,10 +478,18 @@ function finishMove(st, uid, ctx) {
       const pl = st.players[u], d = defU[u];
       if (hasAbility(st, u, 'ronin') && d && (d.char ? 1 : 0) + d.mechs === 1 && !d.workers) { pl.power = Math.min(POWER_MAX, pl.power + 2); log(st, u, '浪人：戦力+2'); }
     }
+    const other = { [uid]: cw.defender, [cw.defender]: uid };
+    for (const u of [uid, cw.defender]) {
+      const pl = st.players[u], op = st.players[other[u]];
+      if (hasAbility(st, u, 'artillery') && pl.power >= 1 && op.power > 0) { pl.power -= 1; op.power = Math.max(0, op.power - 2); log(st, u, '砲撃：相手の戦力-2'); }
+      const stx = st.hexes[cw.hex].structure;
+      if (hasAbility(st, u, 'disarm') && (H(cw.hex).tunnel || (stx?.type === 'mine' && stx.owner === u))) { op.power = Math.max(0, op.power - 2); log(st, u, '武装解除：相手の戦力-2'); }
+    }
+    const pa = (u) => (hasAbility(st, u, 'peoples_army') && st.players[u].workers.includes(cw.hex) ? 1 : 0);
     st.pending = {
       type: 'combat', seq: st.combatSeq, key: `${st.gid}_${st.combatSeq}`, hex: cw.hex, attacker: uid, defender: cw.defender,
-      attUnits: (defU[uid]?.char ? 1 : 0) + (defU[uid]?.mechs || 0),
-      defUnits: (defU[cw.defender]?.char ? 1 : 0) + (defU[cw.defender]?.mechs || 0),
+      attUnits: (defU[uid]?.char ? 1 : 0) + (defU[uid]?.mechs || 0) + pa(uid),
+      defUnits: (defU[cw.defender]?.char ? 1 : 0) + (defU[cw.defender]?.mechs || 0) + pa(cw.defender),
     };
     return;
   }
@@ -795,10 +819,18 @@ function endTurn(st, uid, ctx) {
 export function producibleHexes(st, uid) {
   return controlled(st, uid).filter((h) => myWorkersAt(st, uid, h) && (H(h).terrain === 'village' || TERRAIN_RES[H(h).terrain]));
 }
-export function canDo(st, uid, kind, free = false) {
+export function canDo(st, uid, kind, free = false, conv = false) {
   const p = st.players[uid], m = BASE_MATS[p.mat];
   const wHex = controlled(st, uid).some((h) => myWorkersAt(st, uid, h) && !['lake', 'home'].includes(H(h).terrain));
-  const afford = (k) => free || total(st, uid, BOTTOM_RES[k]) >= Math.max(0, m.lower[k][0] - p.red[k]);
+  // conv=true：資源交換（2個→1個）を使えば払える場合も「可能」とみなす
+  const afford = (k) => {
+    if (free) return true;
+    const r = BOTTOM_RES[k], need = Math.max(0, m.lower[k][0] - p.red[k]), have = total(st, uid, r);
+    if (have >= need) return true;
+    if (!conv || !wHex) return false;
+    const others = ['oil', 'metal', 'wood', 'food'].filter((x) => x !== r).reduce((s, x) => s + total(st, uid, x), 0);
+    return Math.floor(others / 2) >= need - have;
+  };
   switch (kind) {
     case 'upgrade': return p.cubes < 6 && afford(kind) && Object.keys(TOP_CUBES).some((t) => (p.up[t] || 0) < TOP_CUBES[t]) && BOTTOM_ORDER.some((x) => p.red[x] < m.lower[x][1]);
     case 'deploy': return p.mechs.length < 4 && wHex && afford(kind);

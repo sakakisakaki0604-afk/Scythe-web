@@ -166,3 +166,33 @@ main:has(.game){padding:4px 6px}
 .pin em{font:700 11px sans-serif;font-style:normal;color:#fff;text-shadow:0 0 3px #000}
 .ob.okc{border-left:4px solid #6f6}.ob em{display:block;font-style:normal;font-size:12px;opacity:.85}.ob u{opacity:.7}
 .cmp{margin:12px 0 20px}.track .mx{top:-14px}
+
+/* v14 マットの自動フィット（--f はJSが画面に合わせて調整） */
+.mats2 .mat{font-size:calc(var(--f,16) * 1px);padding:.5em .7em;line-height:1.25}
+.mats2 .mat .mh b{font-size:1.25em}
+.mats2 .slot{font-size:.9em;padding:.3em .5em}.mats2 .slot b{font-size:1em}
+.mats2 .acol b{font-size:1.05em}.mats2 .acol small{font-size:.8em}.mats2 .acol .cost{font-size:1.1em}.mats2 .acol .as{font-size:.88em}.mats2 .acol .as small{font-size:.8em}
+.mats2 .chips2 span{font-size:.92em;padding:.1em .5em}.mats2 .ri{width:1.35em;height:1.35em}
+.mats2 .acol{padding:.35em;gap:.2em;min-height:0;overflow:hidden}
+.mats2 .recr{font-size:.8em}
+
+/* v14 演出 */
+.fxwrap{position:fixed;pointer-events:none;z-index:60}.fxwrap svg{width:100%;height:100%}
+.shake{animation:shk .55s}@keyframes shk{0%,100%{transform:none}15%{transform:translate(-7px,3px)}35%{transform:translate(8px,-4px)}55%{transform:translate(-5px,-3px)}75%{transform:translate(4px,4px)}}
+.starburst{position:fixed;left:50%;top:42%;width:0;height:0;z-index:80;pointer-events:none;display:flex;flex-direction:column;align-items:center;animation:sbout 2.5s forwards}
+.starburst img{position:absolute;width:190px;height:190px;left:-95px;top:-95px;animation:sbstar 2.2s ease-out forwards;filter:drop-shadow(0 0 25px #ffe36b)}
+.starburst b{position:absolute;top:110px;white-space:nowrap;font-size:40px;color:#fff3b0;text-shadow:0 0 12px #f7a600,0 3px 0 #7a4b00;animation:sbtxt 2.2s forwards}
+.starburst span{position:absolute;top:165px;white-space:nowrap;font-size:22px;color:#fff;text-shadow:0 2px 6px #000;animation:sbtxt 2.2s forwards}
+.starburst i{position:absolute;width:12px;height:12px;border-radius:3px;background:var(--c);animation:sbconf 1.6s ease-out forwards}
+@keyframes sbstar{0%{transform:scale(.1) rotate(-200deg);opacity:0}25%{transform:scale(1.35) rotate(15deg);opacity:1}40%{transform:scale(1) rotate(0)}85%{transform:scale(1.08);opacity:1}100%{transform:scale(1.6);opacity:0}}
+@keyframes sbtxt{0%,15%{opacity:0;transform:translateY(20px)}30%,85%{opacity:1;transform:none}100%{opacity:0}}
+@keyframes sbconf{0%{transform:translate(0,0) scale(1) rotate(0);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.4) rotate(540deg);opacity:0}}
+@keyframes sbout{0%,90%{opacity:1}100%{opacity:0}}
+.turnbar.mine{animation:myturn 1.6s ease-out 1}@keyframes myturn{0%{box-shadow:0 0 0 0 #ffd400}40%{box-shadow:0 0 0 10px #ffd40088}100%{box-shadow:0 0 0 0 #ffd40000}}
+.mats2 .amat{display:flex;flex-direction:column}.mats2 .amat .acols{flex:1;height:auto;min-height:0}
+/* v15 支持の段階表示 */
+.track.poptrack{height:42px;background:linear-gradient(90deg,#4a3a22 0 36.1%,#3b4a22 36.1% 69.4%,#22503b 69.4%)}
+.tiers{position:absolute;left:0;right:0;bottom:0;display:flex;font-size:9px;color:#fff;line-height:1.1}
+.tiers span{padding:1px 3px;border-left:1px solid #fff5;overflow:hidden;white-space:nowrap;text-overflow:clip}.tiers span:first-child{border:0}
+.poptrack .pin{top:3px!important}
+.gbar.popbar{background:linear-gradient(90deg,#6b5530 0 36.1%,#5d7a30 36.1% 69.4%,#2f8a5f 69.4%)}

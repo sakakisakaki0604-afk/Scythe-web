@@ -76,7 +76,7 @@ export const MECH_SLOTS = {
   rusviet: ['riverwalk', 'township', 'peoples_army', 'speed'],
   togawa:  ['toka', 'suiton', 'ronin', 'shinobi'],
 };
-export const IMPLEMENTED_ABILITIES = ['speed', 'riverwalk', 'camaraderie', 'toka', 'suiton', 'ronin', 'shinobi'];
+export const IMPLEMENTED_ABILITIES = ['speed', 'riverwalk', 'camaraderie', 'seaworthy', 'submerge', 'artillery', 'wayfare', 'underpass', 'disarm', 'township', 'peoples_army', 'toka', 'suiton', 'ronin', 'shinobi'];
 export const RIVERWALK = {
   nordic: ['forest', 'mountain'], crimea: ['farm', 'tundra'], saxony: ['forest', 'mountain'],
   polania: ['village', 'mountain'], rusviet: ['farm', 'village'],
@@ -115,20 +115,20 @@ export const RIVER_TEXT = { forest: '森林', mountain: '山岳', farm: '農地'
 export const ABILITY_TEXT = {
   riverwalk: (f) => `川を越えて${(RIVERWALK[f] || []).map((t) => RIVER_TEXT[t]).join('・')}へ移動できる。`,
   speed: () => 'キャラクターとメックの移動距離が1領土分増える。',
-  seaworthy: () => 'キャラクター／メックは湖へ出入りできる（湖に駒・資源は残せない）。【未実装】',
-  artillery: () => '戦闘開始時に戦力1を払い、相手の戦力を2下げる（1戦闘1回）。【未実装】',
-  wayfare: () => 'キャラクター／メックは自分の本拠地や無人の本拠地へ距離無視で移動できる。【未実装】',
+  seaworthy: () => 'キャラクター／メックは湖へ出入りできる（湖に駒・資源は残せない）。',
+  artillery: () => '戦闘開始時に戦力1を払い、相手の戦力を2下げる（1戦闘1回）。',
+  wayfare: () => 'キャラクター／メックは自分の本拠地や無人の本拠地へ距離無視で移動できる。',
   scout: () => '戦闘開始時、相手の戦闘カードをランダムに1枚奪う。【未実装】',
-  underpass: () => '自分が支配する山岳とトンネルを接続先として扱う。【未実装】',
-  disarm: () => '自分の鉱山／トンネルでの戦闘開始時、相手の戦力を2下げる。【未実装】',
-  submerge: () => 'キャラクター／メックは湖へ出入りでき、湖から湖へも移動できる。【未実装】',
+  underpass: () => '自分が支配する山岳とトンネルを接続先として扱う。',
+  disarm: () => '自分の鉱山／トンネルでの戦闘開始時、相手の戦力を2下げる。',
+  submerge: () => 'キャラクター／メックは湖へ出入りでき、湖から湖へも移動できる。',
   toka: () => '【渡河】1回の移動アクション中、キャラクターかメック1体が川を1本越えられる。',
   suiton: () => '【水遁】キャラクター／メックは湖へ出入りできる（湖では建設・配備不可）。湖の戦闘で戦闘カード+1枚は【未実装】。',
   ronin: () => '【浪人】戦闘に参加する自分のユニットがキャラクター／メック1体だけ（ワーカー無し）なら、戦闘前に戦力+2。',
   shinobi: () => '【忍び】キャラクター／メックは罠トークンのある領土へ距離無視で移動できる。武装解除済みの自分の罠の上で止まれば再武装する。',
   camaraderie: () => '攻撃側で勝ったとき、敗者のワーカー退却による支持の損失を防ぐ。',
-  township: () => '自分が支配する村と工場を隣接として扱う。【未実装】',
-  peoples_army: () => '自分のワーカーがいる領土の戦闘で、戦闘カードを1枚多く使える。【未実装】',
+  township: () => '自分が支配する村と工場を隣接として扱う。',
+  peoples_army: () => '自分のワーカーがいる領土の戦闘で、戦闘カードを1枚多く使える。',
 };
 export const TOP_TEXT = {
   move: '最大2体を移動（またはコイン+1）。キャラ・メックは基本1マス、スピードで+1、改良で+1マス',

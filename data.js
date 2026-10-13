@@ -121,7 +121,7 @@ export const ABILITY_TEXT = {
   seaworthy: () => 'キャラクター／メックは湖へ出入りできる（湖に駒・資源は残せない）。',
   artillery: () => '戦闘開始時に戦力1を払い、相手の戦力を2下げる（1戦闘1回）。',
   wayfare: () => 'キャラクター／メックは自分の本拠地や無人の本拠地へ距離無視で移動できる。',
-  scout: () => '戦闘開始時、相手の戦闘カードをランダムに1枚奪う。【未実装】',
+  scout: () => '戦闘開始時に戦闘カードを1枚得る（山札から。相手の手札は他人から操作できない仕様のため、奪うのではなく山札から得る）。',
   underpass: () => '自分が支配する山岳とトンネルを接続先として扱う。',
   disarm: () => '自分の鉱山／トンネルでの戦闘開始時、相手の戦力を2下げる。',
   submerge: () => 'キャラクター／メックは湖へ出入りでき、湖から湖へも移動できる。',
@@ -151,3 +151,12 @@ export const BOTTOM_TEXT = {
 export const TOP_CUBES = { move: 1, bolster: 2, trade: 2, produce: 1 };
 
 export const STRUCT_TEXT = { monument: '鼓舞のたびに 支持+1', mill: '生産のとき、この領土は+1個', mine: 'トンネルとして使える（移動）', armory: '交易のたびに 戦力+1' };
+
+// 生産コスト（盤上のワーカー数に応じて支払う）。★仮の値：公式マットの赤枠の対応表と照合して直すこと。
+export function produceCost(workersOnBoard) {
+  const c = {};
+  if (workersOnBoard >= 4) c.pop = 1;
+  if (workersOnBoard >= 6) c.power = 1;
+  if (workersOnBoard >= 8) c.coins = 1;
+  return c;
+}

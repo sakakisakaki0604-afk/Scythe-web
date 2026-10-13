@@ -1,8 +1,8 @@
 // Firestore との通信。ルール判定は engine/game.js（全クライアント共通）で行い、ここは読み書きだけを担当する。
 import { doc, getDoc, setDoc, runTransaction } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { apply } from './game.js';
-import { commitChoice } from './combat.js';
-import { ENCOUNTERS, OBJECTIVES } from './cards.js';
+import { apply } from './engine/game.js';
+import { commitChoice } from './engine/combat.js';
+import { ENCOUNTERS, OBJECTIVES } from './engine/cards.js';
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const sum = (o) => Object.values(o).reduce((s, v) => s + v, 0);

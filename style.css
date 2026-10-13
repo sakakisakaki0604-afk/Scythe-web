@@ -210,3 +210,19 @@ img,svg{-webkit-user-drag:none}
 @keyframes sbstar{0%{transform:rotate(-40deg) scale(.6)}30%{transform:rotate(0) scale(1.1)}100%{transform:scale(1)}}
 @keyframes sbemb{0%{transform:translate(0,0);opacity:0}15%{opacity:1}100%{transform:translate(var(--dx),var(--dy));opacity:0}}
 @keyframes sbout{0%,92%{opacity:1}100%{opacity:0}}
+
+/* v17 BGM・ホーム背景 */
+#bgshow{position:fixed;inset:0;z-index:-1}
+#bgshow i{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 2s ease;filter:saturate(.8) brightness(.55)}
+#bgshow i.on{opacity:1}
+body.ingame #bgshow{display:none}
+body:not(.ingame) main .card{background:rgba(253,247,232,.9)}
+
+/* v17 BGM・ホームのスライド */
+#bgm{position:fixed;left:8px;bottom:8px;z-index:90}
+#bgm #bgmP{margin-top:6px;background:#1d1710ee;border:1px solid #8a7444;border-radius:8px;padding:8px;color:#f3ead8;width:230px}
+#bgm select{width:100%;margin:6px 0}#bgm #bgmYT{margin-top:6px;opacity:.9}#bgm iframe{width:100%;height:80px;border-radius:4px}
+.slides{position:fixed;inset:0;z-index:-1;background:#0e0b08;overflow:hidden}
+.slides i{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;animation:slide 98s infinite;filter:saturate(.8) brightness(.55)}
+@keyframes slide{0%{opacity:0;transform:scale(1)}1.5%{opacity:1}7%{opacity:1}8.5%{opacity:0;transform:scale(1.08)}100%{opacity:0}}
+.card{backdrop-filter:blur(2px)}

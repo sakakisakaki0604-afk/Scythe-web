@@ -67,7 +67,7 @@ const SPEC = [
   FC({ card: 1 }, { power: 1 }, [{ k: 'upgrade' }], '戦闘カード1枚 → 改良（無料）＋戦力+1'),
   FC({ anyRes: 2, diff: true }, {}, alt('enlist', 'upgrade'), '異なる資源2個 → 徴兵か改良（無料）'),
 ];
-export const FACTORY_CARDS = SPEC.map((c, i) => ({ id: `fac_${String(i + 1).padStart(2, '0')}`, no: i + 1, name: `工場カード${i + 1}`, img: `factory_${String(i + 1).padStart(2, '0')}.jpg`, ...c }));
+export const FACTORY_CARDS = SPEC.map((c, i) => ({ id: `fac_${String(i + 1).padStart(2, '0')}`, no: i + 1, name: `工場カード${i + 1}`, img: `img/factory_${String(i + 1).padStart(2, '0')}.jpg`, ...c }));
 
 // 追加コンテンツ（設定でON/OFF）。基本: 遭遇1-28・目的1-23・工場1-12 ／ プロモ「さらなる戦場」: 遭遇29-42・目的24-27・工場13-18 ／ 「予期せぬ遭遇」: 遭遇43-74
 export const DEFAULT_EXP = { invaders: false, promo: true, encounters: true };

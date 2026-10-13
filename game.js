@@ -5,7 +5,7 @@
 import { MAP, RES, TERRAIN_RES, isRiver } from './legacy-map.js';
 import {
   BASE_FACTIONS, BASE_MATS, MAT_NUMBER, MECH_SLOTS, RIVERWALK, BOTTOM_ORDER, BOTTOM_RES,
-  RES_NAMES, TRAP_PENALTIES, RECRUIT_ONETIME, RECRUIT_ONGOING, TOP_CUBES, topOf, structOf,
+  RES_NAMES, TRAP_PENALTIES, produceCost, RECRUIT_ONETIME, RECRUIT_ONGOING, TOP_CUBES, topOf, structOf,
 } from './data.js';
 import { ENCOUNTERS, OBJECTIVES, FACTORY_CARDS, BONUS_TILES, byId } from './cards.js';
 
@@ -205,7 +205,9 @@ export function moveTargets(st, uid, unit, stepsAllowed, opts = {}) {
   if (!isWorker && hasAbility(st, uid, 'submerge') && H(from).terrain === 'lake') {
     for (const h of MAP.ids) if (h !== from && H(h).terrain === 'lake' && !best.has(h)) { best.set(h, 1); out.push({ to: h, steps: 1 }); }
   }
-  if (!isWorker && hasAbility(st, uid, 'wayfare')) {
+  if (!isWorker && hasAbility(st, uid, 'wayfare') && Object.keys(st.players).length >= 6) { // 6〜7人時：空いている農場へ
+    for (const h of MAP.ids) if (H(h).terrain === 'farm' && h !== from && !best.has(h) && !Object.keys(unitsAt(st, h)).length) { best.set(h, 1); out.push({ to: h, steps: 1 }); }
+  } else if (!isWorker && hasAbility(st, uid, 'wayfare')) {
     for (const h of MAP.ids) {
       if (H(h).terrain !== 'home' || h === from || best.has(h)) continue;
       if (H(h).home !== p.faction && Object.keys(unitsAt(st, h)).length) continue;
@@ -291,11 +293,13 @@ export function apply(stIn, uid, action, rng = Math.random) {
     }
     case 'move': {
       if (phase !== 'moving') fail('今は移動できません');
+      if (st.pending) fail('処理中の項目があります');
       doMove(st, uid, a, ctx);
       break;
     }
     case 'endMove': {
       if (phase !== 'moving') fail('移動中ではありません');
+      if (st.pending) fail('処理中の項目があります');
       finishMove(st, uid, ctx);
       break;
     }
@@ -320,6 +324,18 @@ export function apply(stIn, uid, action, rng = Math.random) {
       if (!a.skip) { p.flags--; st.flagHexes.push({ hex: st.pending.hex, owner: uid }); log(st, uid, '旗を設置'); }
       st.pending = null;
       settle(st, uid, ctx);
+      break;
+    }
+    case 'coercion': { // クリミア：1手番に1回、戦闘カード1枚を資源1個の代わりに（資源として獲得）
+      if (p.faction !== 'crimea') fail('クリミアだけの能力です');
+      if (st.pending) fail('処理中の項目があります');
+      if (t.coerced) fail('この手番ではすでに使いました');
+      if (p.hand < 1) fail('戦闘カードがありません');
+      if (!RES.includes(a.res)) fail('資源を選んでください');
+      if (controller(st, a.hex) !== uid || !myWorkersAt(st, uid, a.hex)) fail('資源は自分のワーカーがいる支配領土に置きます');
+      p.hand -= 1; ctx.cardPays = (ctx.cardPays || 0) + 1; t.coerced = true;
+      st.hexes[a.hex].res[a.res] = (st.hexes[a.hex].res[a.res] || 0) + 1;
+      log(st, uid, `強要：戦闘カード1枚 → ${RES_NAMES[a.res]}1個`);
       break;
     }
     case 'trap': {
@@ -405,7 +421,7 @@ function topAction(st, uid, a, ctx) {
     if (p.structures.some((s) => s.type === 'armory')) p.power = Math.min(POWER_MAX, p.power + 1);
     log(st, uid, `交易: ${a.mode === 'pop' ? '支持+1' : '資源+2'}`); done(); return;
   }
-  if (kind === 'produce') { doProduce(st, uid, a.hexes, ctx); done(); return; }
+  if (kind === 'produce') { doProduce(st, uid, a.hexes, ctx, true); done(); return; }
   if (kind === 'factory') {
     const card = byId(FACTORY_CARDS, p.factory);
     payCost(st, uid, card.cost, a, ctx);
@@ -434,6 +450,31 @@ function doMove(st, uid, a, ctx) {
     if ((st.hexes[from].res[r] || 0) < n) fail('その資源は領土にありません');
     st.hexes[from].res[r] -= n; st.hexes[a.to].res[r] = (st.hexes[a.to].res[r] || 0) + n;
   }
+  // メックによるワーカー輸送（公式）：出発地のワーカーを乗せ、経由地で乗り降りしながら目的地へ（移動したのはメック1体）
+  const nCarry = Math.max(0, Math.min(+a.workers || 0, 9));
+  const via = Array.isArray(a.via) ? a.via.slice(0, 3) : [];
+  if (nCarry || via.some((v) => (+v.take || 0) > 0)) {
+    if (unit[0] !== 'm') fail('ワーカーを運べるのはメックだけです');
+    const okHex = (h) => !(Object.keys(unitsAt(st, h)).some((u) => u !== uid) || H(h).terrain === 'lake' || (H(h).terrain === 'home' && H(h).home !== p.faction));
+    const mi = +unit.slice(1), save = p.mechs[mi].hex;
+    let cur = from, load = [];
+    const pick = (h, n) => { const idx = p.workers.map((w, i) => (w === h && !load.includes(i) ? i : -1)).filter((i) => i >= 0); if (idx.length < n) fail('そこにそれだけのワーカーがいません'); load.push(...idx.slice(0, n)); };
+    pick(from, nCarry);
+    for (const v of via) {
+      const reach = cur === from ? moveTargets(st, uid, unit, undefined) : (p.mechs[mi].hex = cur, moveTargets(st, uid, unit, undefined));
+      p.mechs[mi].hex = save;
+      if (!reach.some((c) => c.to === v.hex) && v.hex !== from) fail('経由地へ移動できません');
+      if (!okHex(v.hex)) fail('経由地にワーカーは降ろせません');
+      const d = Math.max(0, Math.min(+v.drop || 0, load.length));
+      for (const i of load.splice(0, d)) p.workers[i] = v.hex;
+      pick(v.hex, Math.max(0, +v.take || 0));
+      cur = v.hex;
+    }
+    p.mechs[mi].hex = cur; const finalOk = moveTargets(st, uid, unit, undefined).some((c) => c.to === a.to); p.mechs[mi].hex = save;
+    if (via.length && !finalOk && cur !== a.to) fail('経由地から目的地へ移動できません');
+    if (load.length && !okHex(a.to)) fail('そこへワーカーは運べません');
+    for (const i of load) p.workers[i] = a.to;
+  }
   const before = unitsAt(st, a.to);
   setUnitHex(st, uid, unit, a.to);
   mv.moved.push(unit);  mv.idx++; mv.left--;
@@ -454,7 +495,6 @@ function doMove(st, uid, a, ctx) {
       log(st, uid, `ワーカー${forced}人を退却させた`);
     }
   }
-  if (unit === 'char' && st.hexes[a.to].enc) stop = true;
   if (unit === 'char') st.turn.charMoved = true;
   // 罠：相手の武装した罠に入ると移動が止まり、ペナルティを受けて罠は武装解除される
   const trap = enemyTrap(st, uid, a.to);
@@ -470,6 +510,7 @@ function doMove(st, uid, a, ctx) {
   }
   log(st, uid, `${unit === 'char' ? 'キャラクター' : unit[0] === 'm' ? 'メック' : 'ワーカー'}が移動`);
   if (stop || mv.left <= 0) finishMove(st, uid, ctx);
+  else if (unit === 'char' && st.hexes[a.to].enc) st.pending = { type: 'encounter', hex: a.to, cardId: null }; // 遭遇：解決後も他のユニットを動かせる
 }
 
 function applyPenalty(st, uid, pen, ctx) {
@@ -495,6 +536,7 @@ function finishMove(st, uid, ctx) {
     for (const u of [uid, cw.defender]) {
       const pl = st.players[u], op = st.players[other[u]];
       if (hasAbility(st, u, 'artillery') && pl.power >= 1 && op.power > 0) { pl.power -= 1; op.power = Math.max(0, op.power - 2); log(st, u, '砲撃：相手の戦力-2'); }
+      if (hasAbility(st, u, 'scout')) { grantCards(st, u, 1, ctx); log(st, u, '偵察：戦闘カード+1'); }
       if (u === uid && hasAbility(st, u, 'sword') && op.power > 0) { op.power = Math.max(0, op.power - 2); log(st, u, '剣：相手の戦力-2'); }
       if (u === cw.defender && hasAbility(st, u, 'shield')) { pl.power = Math.min(POWER_MAX, pl.power + 2); log(st, u, '盾：戦力+2'); }
       const stx = st.hexes[cw.hex].structure;
@@ -515,6 +557,7 @@ function finishMove(st, uid, ctx) {
 function settle(st, uid, ctx) {
   const p = st.players[uid], t = st.turn;
   if (st.pending) return;
+  if (t.move) return; // 移動の途中（他のユニットがまだ動ける）
   if (st.hexes[p.char].enc) {
     st.pending = { type: 'encounter', hex: p.char, cardId: null };
     return;
@@ -606,12 +649,13 @@ function enqueueFree(st, hex, items, after) {
   return true;
 }
 
-function doProduce(st, uid, hexes, ctx) {
+function doProduce(st, uid, hexes, ctx, paid = false) {
   const p = st.players[uid];
   hexes = [...new Set(hexes || [])];
   const lim = 2 + (p.up?.produce || 0);
   if (!hexes.length) fail('生産できる領土がありません');
   if (hexes.length > lim) fail(`生産できる領土は最大${lim}か所です`);
+  if (paid) { const c = produceCost(p.workers.length); if (Object.keys(c).length) { if (!canPay(st, uid, c)) fail('生産のコストを払えません'); pay(st, uid, c); } }
   for (const h of hexes) {
     if (controller(st, h) !== uid) fail('支配している領土で生産します');
     const mill = p.structures.some((s) => s.type === 'mill' && s.hex === h) ? 1 : 0;
@@ -809,7 +853,7 @@ export function scoreOf(st, uid) {
   const tile = byId(BONUS_TILES, st.bonusTile);
   const bonusN = tile ? p.structures.filter((s) => tile.test(H(s.hex), MAP)).length : 0;
   const parts = {
-    coins: p.coins, stars: p.stars.length * tier.star, territories: terr * tier.terr,
+    coins: p.coins + (p.faction === 'polania' && Object.keys(st.players).length >= 6 ? 3 * cs.filter((h) => H(h).encounter).length : 0), stars: p.stars.length * tier.star, territories: terr * tier.terr,
     resources: Math.floor(rt / 2) * tier.res, structureBonus: bonusN * (tile?.perStructure || 0),
   };
   return { uid, total: Object.values(parts).reduce((s, v) => s + v, 0), parts, tier, terr, resCount: rt };
@@ -847,7 +891,7 @@ export function canDo(st, uid, kind, free = false, conv = false) {
   // conv=true：資源交換（2個→1個）を使えば払える場合も「可能」とみなす
   const afford = (k) => {
     if (free) return true;
-    const r = BOTTOM_RES[k], need = Math.max(0, m.lower[k][0] - p.red[k]), have = total(st, uid, r);
+    const r = BOTTOM_RES[k], need = Math.max(0, m.lower[k][0] - p.red[k]), have = total(st, uid, r) + (conv && p.faction === 'crimea' && p.hand > 0 && !st.turn.coerced ? 1 : 0);
     if (have >= need) return true;
     if (!conv || !wHex) return false;
     const others = ['oil', 'metal', 'wood', 'food'].filter((x) => x !== r).reduce((s, x) => s + total(st, uid, x), 0);
@@ -858,7 +902,7 @@ export function canDo(st, uid, kind, free = false, conv = false) {
     case 'deploy': return p.mechs.length < 4 && wHex && afford(kind);
     case 'build': return STRUCTS.some((x) => !p.structures.some((q) => q.type === x)) && wHex && afford(kind);
     case 'enlist': return p.recruits.length < 4 && afford(kind);
-    case 'produce': return producibleHexes(st, uid).length > 0;
+    case 'produce': return producibleHexes(st, uid).length > 0 && (free || canPay(st, uid, produceCost(p.workers.length)));
     case 'anyRes': return controlled(st, uid).length > 0;
     case 'bolster': case 'trade': return p.coins >= 1;
     default: return true;

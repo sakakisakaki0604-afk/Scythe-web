@@ -4,15 +4,16 @@ import {
   getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp, deleteField,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
-import { BASE_FACTIONS, BASE_MATS, isLegalCombo } from './data.js';
-import { DEFAULT_EXP, allowedCards } from './cards.js';
+import { BASE_FACTIONS, BASE_MATS, isLegalCombo } from './engine/data.js';
+import { initBgm } from './bgm.js';
+import { DEFAULT_EXP, allowedCards } from './engine/cards.js';
 const expOf = (r) => ({ ...DEFAULT_EXP, ...(r?.settings?.exp || {}) });
 const factionIds = (r) => Object.keys(BASE_FACTIONS).filter((f) => !BASE_FACTIONS[f].ext || expOf(r)[BASE_FACTIONS[f].ext]);
 const maxPlayers = (r) => factionIds(r).length;
-import { resolveDraft, validatePrefs, shuffle } from './draft.js';
-import { startBlockers, placeholderNotes } from './setup.js';
-import { createGame } from './game.js';
-import { FACTORY_CARDS, BONUS_TILES } from './cards.js';
+import { resolveDraft, validatePrefs, shuffle } from './engine/draft.js';
+import { startBlockers, placeholderNotes } from './engine/setup.js';
+import { createGame } from './engine/game.js';
+import { FACTORY_CARDS, BONUS_TILES } from './engine/cards.js';
 import { makeNet, initialDeck } from './net.js';
 import { createGameUI } from './game-ui.js';
 
@@ -250,6 +251,7 @@ function renderReady() {
 }
 
 function render() {
+  document.body.classList.toggle('ingame', !!(room && room.status === 'playing' && room.memberUids.includes(me?.uid)));
   $who.textContent = me ? `ID: ${me.uid.slice(0, 6)}` : '';
   if (!roomId || !room) return renderHome();
   if (!room.memberUids.includes(me.uid)) return renderHome();
@@ -266,3 +268,16 @@ onAuthStateChanged(auth, (u) => {
   const h = location.hash.slice(1);
   if (h) enter(h); else render();
 });
+
+// ---- ホーム画面の背景スライドショー（国マット・行動マットの画像） ----
+(function slideshow() {
+  const imgs = ['faction_rusviet', 'faction_nordic', 'faction_saxony', 'faction_crimea', 'faction_polania', 'faction_togawa', 'faction_albion', 'mat_1', 'mat_2', 'mat_3', 'mat_4', 'mat_5', 'mat_6', 'mat_7'].map((n) => `img/${n}.jpg`);
+  const el = document.createElement('div'); el.id = 'bgshow';
+  el.innerHTML = '<i></i><i></i>'; document.body.prepend(el);
+  const [a, b] = el.querySelectorAll('i'); let k = Math.floor(Math.random() * imgs.length), front = a;
+  const next = () => { k = (k + 1) % imgs.length; const back = front === a ? b : a; back.style.backgroundImage = `url(${imgs[k]})`; back.classList.add('on'); front.classList.remove('on'); front = back; };
+  a.style.backgroundImage = `url(${imgs[k]})`; a.classList.add('on');
+  setInterval(next, 7000);
+})();
+try { initBgm(); } catch (e) { console.error(e); }
+setInterval(() => { try { if (room?.status === 'playing') gameUI.tick(); } catch (e) { console.error(e); } }, 2000); // 取りこぼし防止（戦闘の公開など）

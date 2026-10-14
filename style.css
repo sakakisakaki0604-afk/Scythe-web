@@ -244,3 +244,4 @@ body:not(.ingame) main .card{background:rgba(253,247,232,.9)}
 .pm .ring2{display:inline-flex;width:2.4em;height:2.4em;border-radius:50%;border:.14em solid #4d6128;background:#a7b87a;align-items:center;justify-content:center}.pm .ring2 img{width:70%;height:70%}
 .pm .cst{color:#7a2a18;font-weight:700}
 button.acol.pm.can{border-color:#d49a00;box-shadow:0 0 0 .2em rgba(255,200,40,.7)}.acol.pm.cur{outline:.2em solid #1c8fd1}
+header{background:rgba(20,16,12,.82)!important;color:#f3ead8}header h1,header small,header #who{color:#f3ead8!important}

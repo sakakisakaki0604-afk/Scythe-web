@@ -261,3 +261,13 @@ body:not(.ingame) .card label,body:not(.ingame) .card li,body:not(.ingame) .card
 body:not(.ingame) .card button.ghost{color:#2a2118!important;border:1px solid #8a6a1c!important;background:#fff8e6!important}
 body:not(.ingame) .card .ok{color:#3f7a2c!important}body:not(.ingame) .card .bad{color:#b3402a!important}
 body:not(.ingame) .card input,body:not(.ingame) .card select{background:#fffbea;color:#1a1208}
+/* v23: 移動パネル */
+.mvp .units{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.mvp .mvb{display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:#fffbea;color:#2a2118;border:2px solid #b89b52;border-radius:8px;padding:6px 10px;min-width:96px}
+.mvp .mvb small{font-weight:400;font-size:11px;color:#6f6350}.mvp .mvb.sel{background:#ffe36b;border-color:#c98a00;box-shadow:0 0 0 2px #fff3a8}.mvp .mvb:disabled{opacity:.4;text-decoration:line-through}
+.mvp .mstep{margin:8px 0}.mvp .mstep.now{background:rgba(255,227,107,.25);border-left:4px solid #e0a800;padding:6px 10px;border-radius:4px}
+.mvp .ride{border:1px dashed #b89b52;border-radius:8px;padding:8px 10px;margin:8px 0;background:rgba(0,0,0,.12)}
+.matbg .mvp .mvb{background:#fffbea!important;color:#2a2118!important;border:2px solid #b89b52!important;font-size:14px;padding:6px 10px}
+.matbg .mvp .mvb small{color:#6f6350!important}.matbg .mvp .mvb.sel{background:#ffe36b!important;border-color:#c98a00!important}
+.matbg .mvp .mvb:disabled{opacity:.4}.mvp h2{color:#7a5a12}.mvp,.mvp .mstep,.mvp .ride{color:#2a2118}.mvp .mstep.mute{color:#6f6350}.mvp .ride small{color:#6f6350}
+.mvp h2{text-shadow:none!important;color:#7a5a12!important}

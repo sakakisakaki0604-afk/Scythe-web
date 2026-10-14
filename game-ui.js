@@ -280,7 +280,7 @@ export function createGameUI({ root, net, toast, getCtx, onLeave, onRematch }) {
 
   const UP_EFFECT = { move: '移動+1マス', bolster: '戦力+1／カード+1', trade: '支持+1／資源+1', produce: '生産+1領土' };
 const BON_NAME = { power: '戦力+2', coins: 'コイン+2', pop: '支持+2', card: '戦闘カード+2' };
-const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enlist: '戦闘カード+1' };
+const ONG = { upgrade: '戦力+1', deploy: 'コイン+1', build: '支持+1', enlist: '戦闘カード+1' };
   const topOpts = (p, cur) => Object.keys(TOP_CUBES).filter((t) => (p.up[t] || 0) < TOP_CUBES[t]).map((t) => `<option value="${t}" ${cur === t ? 'selected' : ''}>${TOP_NAMES[t]}：${UP_EFFECT[t]}</option>`).join('');
   const slotOpts = (p, cur) => { const m = BASE_MATS[p.mat]; return BOTTOM_ORDER.filter((s) => p.red[s] < m.lower[s][1]).map((s) => { const c = Math.max(0, m.lower[s][0] - p.red[s]); return `<option value="${s}" ${cur === s ? 'selected' : ''}>${BOTTOM_NAMES[s]}：コスト${c}→${Math.max(0, c - 1)}</option>`; }).join(''); };
   const upNote = '<p class="mute">改良：上段の強化（効果は選択肢に表示）を得て、下段のコストが1下がります。</p>';
@@ -438,16 +438,45 @@ const ONG = { upgrade: 'コイン+1', deploy: '戦力+1', build: '支持+1', enl
     const { st, me } = ctx, p = st.players[me], m = BASE_MATS[p.mat];
     const pick = st.turnUid === me && st.turn.phase === 'section' && !st.pending;
     const ok = pick ? legalSections(st, me) : [];
+    const ic = (x) => `<span class="g">${x}</span>`;
+    const SQ = (cls, inner, title = '') => `<i class="sq ${cls}" ${title ? `title="${title}"` : ''}>${inner}</i>`;
+    const coinI = II('coin', 'コイン'), powI = II('power', '戦力'), popI = II('pop', '支持');
+    const GLYPH = { power: powI, card: '<b class="em">🂠</b>', move: '<b class="em">🏃</b>', coin: coinI, pop: popI, hex: '<b class="em">⬡</b>', res: '<b class="em">◐</b>' };
+    // 上段の絵：基本アイコン＋改良キューブ枠（取ると強化）
+    const TOPSPEC = {
+      bolster: { pay: coinI, groups: [['power', 2, 1], ['card', 1, 1]] },
+      move: { pay: '', groups: [['move', 2, 1], ['coin', 1, 0]] },
+      produce: { pay: '', groups: [['hex', 2, 1]] },
+      trade: { pay: coinI, groups: [['res', 2, 1], ['pop', 1, 1]] },
+    };
+    const LABEL = { bolster: '強化', move: '移動／獲得', produce: '生産', trade: '交易' };
+    const topBlock = (top, s) => {
+      const sp = TOPSPEC[top], up = p.up[top] || 0; let used = 0, bar = '';
+      const grp = sp.groups.map(([g, n, slots]) => {
+        const cells = Array.from({ length: n }, () => SQ('gain', GLYPH[g])).join('');
+        const sl = Array.from({ length: Math.min(slots, Math.max(0, (TOP_CUBES[top] || 0) - used)) }, () => { const filled = used < up; used++; return SQ(`slot ${filled ? 'got' : ''}`, filled ? GLYPH[g] : '<u class="cube"></u>', filled ? '改良済み（効果発動中）' : '改良キューブ枠'); }).join('');
+        return `<span class="grp">${cells}${sl}</span>`;
+      }).join('<b class="sl">／</b>');
+      if (top === 'produce') {
+        const w = p.workers.length, cost = produceCost(w);
+        bar = `<div class="pbar" title="ワーカー数に応じた生産コスト（赤枠）">${[1, 2, 3, 4, 5, 6].map((k) => `<i class="${w >= 2 * k ? 'act' : ''}">${k === 2 ? powI : k === 4 ? popI : k === 6 ? coinI : ''}</i>`).join('')}</div>`;
+      }
+      return `<div class="top"><div class="lbl">${LABEL[top]}</div>${sp.pay ? `<div class="row1"><small>支払</small>${SQ('pay', sp.pay)}</div>` : ''}${bar}<div class="row1">${grp}</div></div>`;
+    };
     const cols = [0, 1, 2, 3].map((s) => {
       const top = topOf(p.mat, s), sk = structOf(p.mat, s), bk = BOTTOM_ORDER[s], [base, maxRed, coin] = m.lower[bk];
       const cost = Math.max(0, base - p.red[bk]), built = p.structures.some((x) => x.type === sk);
-      const cur = p.section === s;
-      return `<${pick ? 'button' : 'div'} class="acol ${cur ? 'cur' : ''} ${pick && ok.includes(s) ? 'can' : ''}" ${pick ? `data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}` : ''}>
-        <div class="at"><b>${TOP_NAMES[top]}</b><span class="cubes" title="上段の改良キューブ（取ると強化）">${top === 'move' || TOP_CUBES[top] ? Array.from({ length: TOP_CUBES[top] || 0 }, (_, i) => `<i class="cube ${i < (p.up[top] || 0) ? 'gone' : ''}"></i>`).join('') : ''}${p.up[top] ? `<em>強化+${p.up[top]}</em>` : ''}</span><small>${TOP_TEXT[top]}</small>${top === 'produce' ? `<small class="pv">${prodPreview(ctx)}</small>` : ''}</div>
-        <div class="as ${built ? 'built' : ''}"><img class="ri" src="img/${sk}.png" alt="">${STRUCT_NAMES[sk]}${built ? '（建設済・効果発動中）' : '（未建設）'}<small>${STRUCT_TEXT[sk]}</small></div>
-        <div class="ab"><b>${BOTTOM_NAMES[bk]}</b><small>${BOTTOM_TEXT[bk]}</small>
-          ${(() => { const r = p.recruits.find((x) => x.section === bk); return r ? `<div class="recr"><b>🪖 徴兵済み</b><br>【常時】<b>自分と両隣</b>がこの下段を行うたび <b>${ONG[bk]}</b><br>【一時・獲得済】${BON_NAME[r.bonus]}</div>` : `<div class="recr off">🪖 徴兵すると：<b>自分と両隣</b>がこの下段を行うたび <b>${ONG[bk]}</b></div>`; })()}<span class="cost">${RESIMG(BOTTOM_RES[bk])}×${cost}${p.red[bk] ? ` <i>(基本${base}−${p.red[bk]})</i>` : ''}</span>
-          <span class="cubes" title="下段のキューブ枠（埋めるとコスト-1）">${Array.from({ length: maxRed }, (_, i) => `<i class="cube slot ${i < p.red[bk] ? 'fill' : ''}"></i>`).join('')}</span><small>報酬 ${ICO.coins}${coin}</small></div></${pick ? 'button' : 'div'}>`;
+      const cur = p.section === s, rec = p.recruits.find((x) => x.section === bk);
+      const ONGI = { upgrade: powI, deploy: coinI, build: popI, enlist: GLYPH.card }[bk];
+      const BG = { upgrade: '⚙', deploy: '▣', build: '⌂', enlist: '🪖' }[bk];
+      const pay = Array.from({ length: base }, (_, i) => (i < base - maxRed ? SQ('pay', RESIMG(BOTTOM_RES[bk])) : SQ(`pay hatch ${i - (base - maxRed) < p.red[bk] ? 'off' : ''}`, i - (base - maxRed) < p.red[bk] ? '<u class="cube"></u>' : RESIMG(BOTTOM_RES[bk])))).join('');
+      return `<${pick ? 'button' : 'div'} class="acol pm ${cur ? 'cur' : ''} ${pick && ok.includes(s) ? 'can' : ''}" ${pick ? `data-act="section" data-v="${s}" ${ok.includes(s) ? '' : 'disabled'}` : ''} title="${esc(TOP_TEXT[top])}／${esc(BOTTOM_TEXT[bk])}">
+        ${topBlock(top, s)}
+        <div class="bld ${built ? 'built' : ''}" title="${esc(STRUCT_TEXT[sk])}"><span class="bi"><img src="img/${sk}.png" alt=""></span><small>${STRUCT_NAMES[sk]}${built ? '：発動中' : ''}</small></div>
+        <div class="bot"><div class="row1"><small>支払</small>${pay}</div>
+          <div class="row1 act2"><small class="nm">${BOTTOM_NAMES[bk]}</small>${SQ('gain', `<b class="em">${BG}</b>`)}${Array.from({ length: coin }, () => `<i class="cn">${coinI}</i>`).join('')}</div>
+          <div class="rc"><span class="ring ${rec ? 'on' : ''}" title="${rec ? `徴兵済み：自分と両隣がこの下段を行うたび ${ONG[bk]}` : `徴兵すると、自分と両隣がこの下段を行うたび ${ONG[bk]}`}">${II('people', '徴兵')}</span><span class="ring2" title="常時ボーナス：${ONG[bk]}">${ONGI}</span></div>
+          ${cost !== base ? `<small class="cst">コスト ${cost}</small>` : ''}</div></${pick ? 'button' : 'div'}>`;
     }).join('');
     return `<div class="mat amat" style="background-image:linear-gradient(rgba(10,8,6,.5),rgba(10,8,6,.85)),url(img/mat_${MAT_IMG[p.mat] || 1}.jpg)">
       <div class="mh"><b>${m.name}マット</b> <span class="mute">改良 ${p.cubes}/6 ・ 徴兵 ${p.recruits.length}/4 ・ 建物 ${p.structures.length}/4${pick ? ' ・ <b class="hint">列をクリックして今回のセクションを選ぶ</b>' : ''}</span></div>

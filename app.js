@@ -148,7 +148,7 @@ function renderHome() {
     <div class="row"><label>表示名 <input id="nm" maxlength="12" value="${esc(defaultName())}" placeholder="例: アルバート"></label></div>
     <div class="row"><button id="mk">ルームを作る</button></div>
     <div class="row"><input id="cd" maxlength="8" placeholder="ルームコード" autocapitalize="characters" value="${esc(roomId || '')}"><button class="ghost" id="jn">参加する</button></div>
-    <p class="mute">基本セット・2〜5人（拡張ONで最大6人）。招待はルームコードを共有してください。${TEST_MODE ? '<br><b>テストモード: このタブは独立したプレイヤーです。</b>' : ''}</p>
+    <p class="mute">基本セット・1〜5人（拡張「彼方よりの侵攻」ONで最大7人）。招待はルームコードを共有してください。${TEST_MODE ? '<br><b>テストモード: このタブは独立したプレイヤーです。</b>' : ''}</p>
   </div>`;
   const name = () => { const v = document.getElementById('nm').value.trim(); if (!v) { toast('表示名を入力してください'); return null; } if (!TEST_MODE) save(NAME_KEY, v); return v; };
   document.getElementById('mk').onclick = () => { const n = name(); if (n) createRoom(n).catch((e) => { toast('作成に失敗しました'); console.error(e); }); };
@@ -191,7 +191,7 @@ function renderLobby() {
 
 function renderDraft(kind) {
   const isFaction = kind === 'faction';
-  const cands = isFaction ? factionIds(room) : Object.keys(BASE_MATS);
+  const cands = isFaction ? factionIds(room) : Object.keys(BASE_MATS).filter((m) => !BASE_MATS[m].ext || expOf(room)[BASE_MATS[m].ext]);
   const label = (id) => (isFaction ? BASE_FACTIONS[id].name : BASE_MATS[id].name);
   const legal = (uid, c) => (isFaction ? true : isLegalCombo(room.draft.factions[uid], c));
   const mine = room.submitted?.[me.uid];

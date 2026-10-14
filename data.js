@@ -30,6 +30,13 @@ export const BASE_MATS = {
   agricultural: { name: '農業主義', popularity: 4, coins: 7, objectives: 2,
     columns: ['move+mine', 'trade+armory', 'produce+mill', 'inspire+monument'],
     lower: { upgrade: [2, 0, 1], deploy: [4, 2, 0], build: [4, 2, 2], enlist: [3, 2, 3] }, verified: 'partial' },
+  // 拡張「彼方よりの侵攻」の追加マット（実物写真より転記：Militant=2a / Innovative=3a）
+  militant:     { name: '軍国主義（2a）', popularity: 3, coins: 4, objectives: 2, ext: 'invaders',
+    columns: ['inspire+monument', 'move+mine', 'produce+mill', 'trade+armory'],
+    lower: { upgrade: [3, 2, 0], deploy: [3, 1, 3], build: [4, 1, 1], enlist: [3, 2, 2] }, verified: 'photo' },
+  innovative:   { name: '革新主義（3a）', popularity: 3, coins: 5, objectives: 2, ext: 'invaders',
+    columns: ['trade+armory', 'produce+mill', 'inspire+monument', 'move+mine'],
+    lower: { upgrade: [3, 0, 3], deploy: [3, 1, 1], build: [4, 3, 2], enlist: [3, 2, 0] }, verified: 'photo' },
 };
 
 // 公式ルール上の禁止組み合わせ（勢力 → 使えないマット）
@@ -65,7 +72,8 @@ export const PLAYER_RANGE = { min: 1, max: 7 }; // 基本5＋トガワ
 export const factoryCandidateCount = (players) => players + 1;
 
 // ---- ゲーム進行用の追加定義 ----
-export const MAT_NUMBER = { industrial: 1, engineering: 2, patriotic: 3, mechanical: 4, agricultural: 5 };
+// 先手順：1 → 2 → 2a → 3 → 3a → 4 → 5
+export const MAT_NUMBER = { industrial: 1, engineering: 2, militant: 2.5, patriotic: 3, innovative: 3.5, mechanical: 4, agricultural: 5 };
 
 // メック能力スロット4つ（ルールブックの並び: Riverwalk → 勢力固有2つ → Speed）。
 // 実装済み: speed / riverwalk / camaraderie。それ以外は表示のみ（未実装）。
@@ -98,7 +106,7 @@ export const RES_NAMES = { oil: '油', metal: '鉄', wood: '木材', food: '食�
 
 // 徴兵の一時ボーナス（各2）と、常時ボーナス（★仮: 下段アクション別）
 export const RECRUIT_ONETIME = ['power', 'coins', 'pop', 'card'];
-export const RECRUIT_ONGOING = { upgrade: { coins: 1 }, deploy: { power: 1 }, build: { pop: 1 }, enlist: { card: 1 } };
+export const RECRUIT_ONGOING = { upgrade: { power: 1 }, deploy: { coins: 1 }, build: { pop: 1 }, enlist: { card: 1 } };
 
 export const topOf = (mat, idx) => BASE_MATS[mat].columns[idx].split('+')[0].replace('inspire', 'bolster');
 export const structOf = (mat, idx) => BASE_MATS[mat].columns[idx].split('+')[1];

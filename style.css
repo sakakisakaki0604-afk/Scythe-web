@@ -226,3 +226,21 @@ body:not(.ingame) main .card{background:rgba(253,247,232,.9)}
 .slides i{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;animation:slide 98s infinite;filter:saturate(.8) brightness(.55)}
 @keyframes slide{0%{opacity:0;transform:scale(1)}1.5%{opacity:1}7%{opacity:1}8.5%{opacity:0;transform:scale(1.08)}100%{opacity:0}}
 .card{backdrop-filter:blur(2px)}
+/* v20: 実物マット風 */
+.amat .acols{gap:.5em}
+.acol.pm{background:rgba(244,238,224,.74);color:#2a2118;border:1px solid #9a8a62;padding:.4em .35em;gap:.3em;font-size:inherit;justify-content:space-between;overflow:hidden}
+.acol.pm small{color:#5a4d36;font-size:.72em;display:inline}.acol.pm .top{display:flex;flex-direction:column;gap:.25em}.acol.pm .lbl{font-weight:700;font-size:.8em;color:#6b4d12;letter-spacing:.08em}
+.pm .row1{display:flex;align-items:center;flex-wrap:wrap;gap:.2em}.pm .grp{display:inline-flex;gap:.15em}.pm .sl{font-size:1.1em;color:#6b4d12;margin:0 .1em}
+.pm .sq{display:inline-flex;align-items:center;justify-content:center;width:1.9em;height:1.9em;border-radius:.3em;border:.12em solid #3a2a14;font-style:normal;box-sizing:border-box}
+.pm .sq.gain{background:#8aa656;border-color:#4d6128}.pm .sq.pay{background:#c4492c;border-color:#6e2312}
+.pm .sq.slot{background:#e9e2cf;border:.12em dashed #3a2a14}.pm .sq.slot.got{background:#8aa656;border:.12em solid #4d6128}
+.pm .sq.hatch{background:repeating-linear-gradient(45deg,#c4492c 0 .28em,#f4eee0 .28em .5em);border-color:#6e2312}.pm .sq.hatch.off{background:#d8cfb8;border-style:dashed;opacity:.8}
+.pm .sq img{width:78%;height:78%}.pm .em{font-size:1.15em;line-height:1}.pm u.cube{display:block;width:.9em;height:.9em;background:#8b5a2b;border:.1em solid #3a2a14;border-radius:.15em}
+.pm .pbar{display:flex;border:.12em solid #6e2312;border-radius:.25em;overflow:hidden;background:#c4492c}.pm .pbar i{flex:1;height:1.5em;display:flex;align-items:center;justify-content:center;border-right:.1em solid #f4eee0}.pm .pbar i:last-child{border:0}.pm .pbar i.act{background:#8e2c16;box-shadow:inset 0 0 0 .12em #ffe36b}.pm .pbar img{width:1.1em;height:1.1em}
+.pm .bld{display:flex;align-items:center;gap:.3em;justify-content:center;background:rgba(0,0,0,.08);border-radius:.3em;padding:.15em}.pm .bld.built{background:#8aa656}.pm .bi{display:inline-flex;width:2.3em;height:2.3em;background:#a7b87a;border:.12em solid #4d6128;border-radius:.4em;align-items:center;justify-content:center}.pm .bi img{width:80%;height:80%}
+.pm .bot{border-top:.1em solid #9a8a62;padding-top:.3em;display:flex;flex-direction:column;gap:.25em}.pm .act2 .nm{font-weight:700;font-size:.78em;color:#2a2118;margin-right:.15em}
+.pm .cn{display:inline-flex;width:1.7em;height:1.7em;border-radius:50%;background:#f1c94a;border:.1em solid #8a6a1c;align-items:center;justify-content:center}.pm .cn img{width:80%;height:80%}
+.pm .rc{display:flex;justify-content:flex-end;align-items:center;gap:.3em}.pm .ring{display:inline-flex;width:2.4em;height:2.4em;border-radius:50%;border:.14em solid #b8452f;background:#fff;align-items:center;justify-content:center;opacity:.55}.pm .ring.on{opacity:1;box-shadow:0 0 0 .14em #ffe36b;background:#ffeaa0}.pm .ring img{width:70%;height:70%}
+.pm .ring2{display:inline-flex;width:2.4em;height:2.4em;border-radius:50%;border:.14em solid #4d6128;background:#a7b87a;align-items:center;justify-content:center}.pm .ring2 img{width:70%;height:70%}
+.pm .cst{color:#7a2a18;font-weight:700}
+button.acol.pm.can{border-color:#d49a00;box-shadow:0 0 0 .2em rgba(255,200,40,.7)}.acol.pm.cur{outline:.2em solid #1c8fd1}

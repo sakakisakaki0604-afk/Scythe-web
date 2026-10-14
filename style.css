@@ -271,3 +271,6 @@ body:not(.ingame) .card input,body:not(.ingame) .card select{background:#fffbea;
 .matbg .mvp .mvb small{color:#6f6350!important}.matbg .mvp .mvb.sel{background:#ffe36b!important;border-color:#c98a00!important}
 .matbg .mvp .mvb:disabled{opacity:.4}.mvp h2{color:#7a5a12}.mvp,.mvp .mstep,.mvp .ride{color:#2a2118}.mvp .mstep.mute{color:#6f6350}.mvp .ride small{color:#6f6350}
 .mvp h2{text-shadow:none!important;color:#7a5a12!important}
+.paybox{background:#fff3c4;color:#5a3b00;border:2px solid #e0a800;border-radius:8px;padding:6px 10px;margin:6px 0;font-size:15px}.paybox b{font-size:17px;color:#a02a00}.paybox small{color:#6f5a20}
+.pm .paynow{background:rgba(255,243,196,.92);color:#5a3b00;border-radius:.3em;padding:.15em .4em;font-size:.82em;text-shadow:none}.pm .paynow b{color:#a02a00}.pm .paynow small{color:#6f5a20!important;margin-left:.3em}
+.pm .paynow{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2em .4em;line-height:1.2}.pm .paynow small{margin:0}

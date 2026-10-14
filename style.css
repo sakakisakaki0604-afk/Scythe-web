@@ -245,3 +245,19 @@ body:not(.ingame) main .card{background:rgba(253,247,232,.9)}
 .pm .cst{color:#7a2a18;font-weight:700}
 button.acol.pm.can{border-color:#d49a00;box-shadow:0 0 0 .2em rgba(255,200,40,.7)}.acol.pm.cur{outline:.2em solid #1c8fd1}
 header{background:rgba(20,16,12,.82)!important;color:#f3ead8}header h1,header small,header #who{color:#f3ead8!important}
+/* v23 */
+.acol.pm{background:transparent!important;color:#fff;border:1px solid rgba(255,255,255,.35);text-shadow:0 1px 3px #000,0 0 6px #000}
+.pm small,.acol.pm small{color:#fff!important}.pm .lbl{color:#ffe9a8!important}.pm .act2 .nm{color:#fff!important}.pm .sl{color:#ffe9a8!important}
+.pm .bld{background:rgba(0,0,0,.28)}.pm .bld.built{background:rgba(110,150,60,.75)}.pm .bot{border-top-color:rgba(255,255,255,.5)}
+.pm .sq.slot.got{background:#c8a46a;border:.12em solid #3a2a14}.pm .cst{color:#ffb8a8}
+.pm .ring,.pm .ring2{width:2.9em;height:2.9em}.pm .ring img,.pm .ring2 img{width:92%;height:92%}.pm .ring{opacity:.8}
+.mats2 .fmat{display:flex;flex-direction:column}.mats2 .fmat .slots{flex:1;min-height:0;grid-auto-rows:1fr;gap:.4em}
+.mats2 .fmat .slot{padding:.45em .7em;font-size:1em;display:flex;flex-direction:column;justify-content:center}
+.mats2 .fmat .slot b{font-size:1.3em}.mats2 .fmat .slot span{font-size:1.1em;color:#fff;line-height:1.3}
+body:not(.ingame) .card{background:rgba(255,250,240,.94)!important;color:#2a2118!important;text-shadow:none}
+body:not(.ingame) .card .mute,body:not(.ingame) .card small{color:#6f6350!important}
+body:not(.ingame) .card h2,body:not(.ingame) .card h3{color:#8a6a1c!important}
+body:not(.ingame) .card label,body:not(.ingame) .card li,body:not(.ingame) .card p,body:not(.ingame) .card span,body:not(.ingame) .card div{color:inherit}
+body:not(.ingame) .card button.ghost{color:#2a2118!important;border:1px solid #8a6a1c!important;background:#fff8e6!important}
+body:not(.ingame) .card .ok{color:#3f7a2c!important}body:not(.ingame) .card .bad{color:#b3402a!important}
+body:not(.ingame) .card input,body:not(.ingame) .card select{background:#fffbea;color:#1a1208}

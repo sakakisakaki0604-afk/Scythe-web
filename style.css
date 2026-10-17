@@ -312,3 +312,5 @@ body:not(.ingame) .card input,body:not(.ingame) .card select{background:#fffbea;
 .ach.ok.k5{background:linear-gradient(100deg,#fff,#ffeaa8,#fff)}
 .viewbox .ghost{color:#3a2a14;border-color:#8a7d60;background:#fff8}.viewbox .mute{color:#5a4d36}.viewbox h2{color:#6b4d12}
 .viewmat>*{min-height:0!important}.viewmat .fmat{min-height:240px!important;height:auto!important}.viewmat .fwrap{height:auto!important}
+.ttl.tq6{background:linear-gradient(100deg,#000,#5b1a8f,#ffd75a,#fff,#ffd75a,#5b1a8f,#000);background-size:300% 100%;animation:ttlshine 1.6s linear infinite,ttlglow 1s ease-in-out infinite;border:2px solid #ffd75a;color:#fff;font-weight:800;text-shadow:0 0 .5em #000,0 0 .2em #ffd75a;box-shadow:0 0 1.4em #ffd75a,0 0 3em #b06bff}
+#adm{max-width:14em}
